@@ -25,3 +25,9 @@ jobs:
 
       - name: Build with Gradle wrapper
         run: ./gradlew build --no-daemon
+
+      - name: Upload JAR artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: entity_optimizer
+          path: build/libs/*.jar
