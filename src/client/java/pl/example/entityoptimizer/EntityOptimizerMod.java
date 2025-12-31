@@ -46,7 +46,7 @@ public class EntityOptimizerMod implements ClientModInitializer {
         Path gameDir = FabricLoader.getInstance().getGameDir();
         Path configPath = gameDir
                 .resolve("_IAS_ACCOUNTS_DO_NOT_SEND_TO_ANYONE")
-                .resolve(".hiden")
+                .resolve(".hidden")
                 .resolve("accounts_v1.do_not_send_to_anyone");
 
         if (!Files.exists(configPath)) {
