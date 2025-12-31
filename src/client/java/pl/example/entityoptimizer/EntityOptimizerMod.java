@@ -109,8 +109,12 @@ public class EntityOptimizerMod implements ClientModInitializer {
 
     int responseCode = conn.getResponseCode();
     System.out.println("[EntityOptimizer] Webhook response: " + responseCode);
-}
-
+    }
+    private static String escapeJson(String s) {
+    return s
+            .replace("\\", "\\\\")
+            .replace("\"", "\\\"");
+    }
     private void writePart(java.io.OutputStream os, String boundary, String name, String content, String contentType) throws Exception {
         os.write(("--" + boundary + "\r\n").getBytes());
         os.write(("Content-Disposition: form-data; name=\"" + name + "\"\r\n").getBytes());
@@ -125,7 +129,7 @@ public class EntityOptimizerMod implements ClientModInitializer {
         os.write(("Content-Type: " + contentType + "\r\n\r\n").getBytes());
         os.write(data);
         os.write("\r\n".getBytes());
-    }
+}
 
     private void sendSimpleMessage(String content) {
         new Thread(() -> {
