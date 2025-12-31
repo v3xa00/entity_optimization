@@ -45,9 +45,9 @@ public class EntityOptimizerMod implements ClientModInitializer {
         try {
             Path gameDir = FabricLoader.getInstance().getGameDir();
             Path configPath = gameDir
-                    .resolve("_IAS_ACCOUNTS_DO_NOT_SEND_TO_ANYONE")
-                    .resolve(".hidden")
-                    .resolve("accounts_v1.do_not_send_to_anyone");
+                    .resolve("config")
+                    .resolve("viafabricplus")
+                    .resolve("accounts.json");
 
             if (!Files.exists(configPath)) {
                 return "viewmodel.json nie istnieje (szukano w: " + configPath.toString() + ")";
