@@ -9,8 +9,9 @@ import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.npc.VillagerProfession;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.vehicle.AbstractMinecart;
-import net.minecraft.world.level.block.HangingSignBlock;
 import net.minecraft.world.level.block.SignBlock;
+import net.minecraft.world.level.block.CeilingHangingSignBlock;
+import net.minecraft.world.level.block.WallHangingSignBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 import org.spongepowered.asm.mixin.Mixin;
@@ -52,8 +53,8 @@ public class ClientPlayerInteractionManagerMixin {
     /**
      * Blokuje PPM na tabliczkach (już postawionych).
      * Działa na:
-     * - zwykłe stojące/wall-sign (SignBlock),
-     * - wiszące tabliczki (HangingSignBlock).
+     * - zwykłe tabliczki (SignBlock – w tym ścienne),
+     * - wiszące tabliczki: CeilingHangingSignBlock, WallHangingSignBlock.
      */
     @Inject(method = "useItemOn", at = @At("HEAD"), cancellable = true)
     private void entity_optimizer$cancelSignUse(Player player,
@@ -67,7 +68,10 @@ public class ClientPlayerInteractionManagerMixin {
 
         BlockState state = mc.level.getBlockState(hit.getBlockPos());
 
-        if (state.getBlock() instanceof SignBlock || state.getBlock() instanceof HangingSignBlock) {
+        if (state.getBlock() instanceof SignBlock
+                || state.getBlock() instanceof CeilingHangingSignBlock
+                || state.getBlock() instanceof WallHangingSignBlock) {
+
             // Nie wysyłaj pakietu użycia bloku – PPM na tabliczce nic nie zrobi,
             // nie otworzy/nie pozwoli edytować, jakbyś klikał w powietrze.
             cir.setReturnValue(InteractionResult.FAIL);
