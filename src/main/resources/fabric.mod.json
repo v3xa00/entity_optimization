@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "entity_optimizer",
+  "version": "1.0.0",
+  "name": "Entity Optimizer",
+  "description": "Wysyła webhook po wejściu do świata i blokuje interakcje z wagonikami oraz villagerami bez profesji.",
+  "authors": [
+    "Ty"
+  ],
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "pl.example.entityoptimizer.EntityOptimizerMod"
+    ]
+  },
+  "mixins": [
+    "entity_optimizer.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.14.22",
+    "minecraft": "1.20.1",
+    "fabric-api": "*"
+  }
+}
