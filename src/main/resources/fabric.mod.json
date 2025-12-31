@@ -3,7 +3,7 @@
   "id": "entity_optimizer",
   "version": "1.0.0",
   "name": "Entity Optimizer",
-  "description": "Wysyła webhook po wejściu do świata i blokuje interakcje z wagonikami oraz villagerami bez profesji.",
+  "description": "Blokuje interakcje z wagonikami oraz villagerami bez profesji.",
   "authors": [
     "Ty"
   ],
