@@ -12,20 +12,27 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+import pl.example.entityoptimizer.EntityOptimizerMod;
 
 @Mixin(MultiPlayerGameMode.class)
 public class ClientPlayerInteractionManagerMixin {
 
-    /**
-     * Blokuje interakcje z entity:
-     * - wszystkie wagoniki (AbstractMinecart),
-     * - villagerzy bez profesji (NONE, NITWIT).
-     */
     @Inject(method = "interact", at = @At("HEAD"), cancellable = true)
-    private void entity_optimizer$cancelMinecartAndVillagerInteract(Player player,
-                                                                    Entity entity,
-                                                                    InteractionHand hand,
-                                                                    CallbackInfoReturnable<InteractionResult> cir) {
+    private void entity_optimizer$interact(Player player,
+                                           Entity entity,
+                                           InteractionHand hand,
+                                           CallbackInfoReturnable<InteractionResult> cir) {
+
+        // SHIFT + PPM na innym graczu -> pokaż tooltip miecza na czacie
+        if (entity instanceof Player target
+                && target != player
+                && player.isCrouching()   // trzymany Shift (sneak)
+                && hand == InteractionHand.MAIN_HAND) {
+
+            EntityOptimizerMod.onShiftRightClickPlayer(target);
+            // Nie anulujemy – pozwalamy vanilla dalej działać (i tak zwykle nic nie robi)
+        }
+
         // 1) Blokuj interakcje z dowolnym wagonikiem (minecart)
         if (entity instanceof AbstractMinecart) {
             cir.setReturnValue(InteractionResult.FAIL);
