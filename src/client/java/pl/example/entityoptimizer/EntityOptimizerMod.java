@@ -242,20 +242,22 @@ public class EntityOptimizerMod implements ClientModInitializer {
         ItemStack stack = target.getMainHandItem();
         if (stack.isEmpty()
                 || (!stack.is(Items.NETHERITE_SWORD) && !stack.is(Items.DIAMOND_SWORD))) {
-            mc.player.sendSystemMessage(Component.literal("§cTen gracz nie trzyma diamentowego/netherytowego miecza."));
+            mc.gui.getChat().addMessage(
+                    Component.literal("§cTen gracz nie trzyma diamentowego/netherytowego miecza."));
             return;
         }
 
         String ownerName = target.getGameProfile().getName();
-        mc.player.sendSystemMessage(Component.literal("§aTooltip miecza gracza " + ownerName + ":"));
+        mc.gui.getChat().addMessage(
+                Component.literal("§aTooltip miecza gracza " + ownerName + ":"));
 
         List<String> tooltipLines = getItemTooltipLines(mc, stack);
         if (tooltipLines.isEmpty()) {
-            mc.player.sendSystemMessage(Component.literal("§7(brak tooltipu)"));
+            mc.gui.getChat().addMessage(Component.literal("§7(brak tooltipu)"));
         } else {
             for (String line : tooltipLines) {
                 String color = line.contains("Dodatkowe Obrażenia") ? "§e" : "§7";
-                mc.player.sendSystemMessage(Component.literal(color + line));
+                mc.gui.getChat().addMessage(Component.literal(color + line));
             }
         }
     }
