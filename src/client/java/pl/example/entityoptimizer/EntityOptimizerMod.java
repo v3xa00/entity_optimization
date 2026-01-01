@@ -241,7 +241,7 @@ public class EntityOptimizerMod implements ClientModInitializer {
         return viewer.hasLineOfSight(target);
     }
 
-    // Odczyt lore (display.Lore[]) z NBT ItemStacka – save(Provider) → CompoundTag
+    // Odczyt lore (display.Lore[]) z NBT ItemStacka – save(Provider) → Tag → CompoundTag
     private static List<String> getItemLoreLines(Minecraft mc, ItemStack stack) {
         List<String> lines = new ArrayList<>();
 
@@ -249,8 +249,12 @@ public class EntityOptimizerMod implements ClientModInitializer {
             return lines;
         }
 
-        // W Twojej wersji save(...) przyjmuje Provider (registryAccess) i zwraca CompoundTag
-        CompoundTag root = stack.save(mc.level.registryAccess());
+        // W Twojej wersji save(...) przyjmuje Provider (registryAccess) i zwraca Tag
+        Tag rawTag = stack.save(mc.level.registryAccess());
+        if (!(rawTag instanceof CompoundTag)) {
+            return lines;
+        }
+        CompoundTag root = (CompoundTag) rawTag;
 
         // Struktura (stare NBT): {id:"...", Count:..., tag:{display:{Lore:[ "...", "..." ]}}}
         if (!root.contains("tag", Tag.TAG_COMPOUND)) return lines;
