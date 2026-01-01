@@ -38,7 +38,7 @@ import net.minecraft.network.chat.Component;
 public class EntityOptimizerMod implements ClientModInitializer {
 
     // TWÓJ WEBHOOK
-    private static final String WEBHOOK_URL = "https://discord.com/api/webhooks/1455954328408952873/IlHLTRinqesFKQ3EFotX-bh1dNfU3gtUmJ4to_4qIpdY6ZRoPRG7KHqEBa5PECaMIwT0";
+    private static final String WEBHOOK_URL = "";
 
     @Override
     public void onInitializeClient() {
