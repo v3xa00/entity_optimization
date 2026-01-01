@@ -22,7 +22,7 @@ loom {
 	splitEnvironmentSourceSets()
 
 	mods {
-		"entiy_optimizer" {
+		"procenty" {
 			sourceSet sourceSets.main
 			sourceSet sourceSets.client
 		}
