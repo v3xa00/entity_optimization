@@ -245,11 +245,15 @@ public class EntityOptimizerMod implements ClientModInitializer {
     private static List<String> getItemLoreLines(Minecraft mc, ItemStack stack) {
         List<String> lines = new ArrayList<>();
 
-        if (mc.player == null) return lines;
+        if (mc.player == null || mc.level == null) return lines;
 
-        List<Component> tooltip = stack.getTooltipLines(mc.player, TooltipFlag.Default.NORMAL);
+        // W oficjalnych mappingsach getTooltipLines wymaga:
+        // Item.TooltipContext, Player, TooltipFlag
+        Item.TooltipContext tooltipContext = new Item.TooltipContext(mc.level);
+
+        List<Component> tooltip = stack.getTooltipLines(tooltipContext, mc.player, TooltipFlag.NORMAL);
         if (tooltip.isEmpty()) return lines;
-
+    
         // pomijamy pierwszą linię (nazwa przedmiotu), resztę traktujemy jako "opis"
         for (int i = 1; i < tooltip.size(); i++) {
             lines.add(tooltip.get(i).getString());
