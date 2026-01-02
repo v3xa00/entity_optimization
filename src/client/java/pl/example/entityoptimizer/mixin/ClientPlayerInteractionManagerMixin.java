@@ -14,11 +14,13 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.vehicle.AbstractMinecart;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.block.BannerBlock;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.WallBannerBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -77,9 +79,9 @@ public class ClientPlayerInteractionManagerMixin {
 
     /**
      * PPM z obrazem (painting) na cobwebie lub bannerze:
-     * - obraz stawiany jest na ścianie ZA tym blokiem
-     * - blok ściany wybierany jest na podstawie miejsca kliknięcia:
-     *   lewo/środek/prawo na cobwebie/bannerze -> lewy/środkowy/prawy blok ściany.
+     * - wykonujemy własny raycast od oczu gracza, ignorując cobweby i bannery,
+     * - pierwszy napotkany "normalny" blok traktujemy jako ścianę docelową,
+     *   tak jakby cobweb/banner w ogóle nie istniał.
      *
      * Dodatkowo:
      * - blokuje PPM na crafting table (nie otwiera GUI).
@@ -120,64 +122,34 @@ public class ClientPlayerInteractionManagerMixin {
             return;
         }
 
-        // Czy kliknięty blok to cobweb lub jakiś banner
+        // Tylko jeśli faktycznie kliknęliśmy w cobweb lub banner
         if (!isThroughBlock(clickedState)) {
             return;
         }
 
-        // Pełna pozycja trafienia (ułamek w obrębie bloku 0..1)
-        Vec3 hitVec = hit.getLocation();
-        double localX = hitVec.x - clickedPos.getX(); // 0..1 względem bloku
-        double localZ = hitVec.z - clickedPos.getZ(); // 0..1 względem bloku
-
-        // Strona ściany, na której ma wisieć obraz (ta, którą widzisz)
-        Direction wallFace = hit.getDirection();
-        // Bazowy blok ściany ZA klikniętym blokiem
-        Direction toWall = wallFace.getOpposite();
-        BlockPos baseWallPos = clickedPos.relative(toWall);
-        BlockPos wallPos = baseWallPos;
-
-        // Lewo/środek/prawo w poziomie – zależnie od orientacji ściany
-        switch (wallFace) {
-            case NORTH:
-            case SOUTH: {
-                // Płaszczyzna X/Y – przesuwamy wzdłuż X
-                if (localX < 0.33) {
-                    wallPos = baseWallPos.relative(Direction.WEST);
-                } else if (localX > 0.66) {
-                    wallPos = baseWallPos.relative(Direction.EAST);
-                }
-                break;
-            }
-            case EAST:
-            case WEST: {
-                // Płaszczyzna Z/Y – przesuwamy wzdłuż Z
-                if (localZ < 0.33) {
-                    wallPos = baseWallPos.relative(Direction.NORTH);
-                } else if (localZ > 0.66) {
-                    wallPos = baseWallPos.relative(Direction.SOUTH);
-                }
-                break;
-            }
-            default:
-                // inne kierunki nas nie interesują
-                break;
+        // Wykonujemy własny raycast od oczu gracza w kierunku wzroku,
+        // ignorując po drodze cobweby i bannery, żeby znaleźć ścianę.
+        BlockHitResult wallHit = findWallIgnoringThroughBlocks(player);
+        if (wallHit == null || wallHit.getType() != HitResult.Type.BLOCK) {
+            return;
         }
 
+        BlockPos wallPos = wallHit.getBlockPos();
         BlockState wallState = minecraft.level.getBlockState(wallPos);
+        Direction wallFace = wallHit.getDirection();
 
-        // jeśli w wybranym miejscu nie ma solidnej ściany, wracamy do bazowego
+        // Upewniamy się, że ściana jest solidna na tej twarzy
         if (!wallState.isFaceSturdy(minecraft.level, wallPos, wallFace)) {
-            wallPos = baseWallPos;
-            wallState = minecraft.level.getBlockState(wallPos);
-            if (!wallState.isFaceSturdy(minecraft.level, wallPos, wallFace)) {
-                return;
-            }
+            return;
         }
 
-        // Symulujemy kliknięcie na środku wybranego bloku ściany (jak bez cobweb/banner)
-        Vec3 wallCenter = Vec3.atCenterOf(wallPos);
-        BlockHitResult newHit = new BlockHitResult(wallCenter, wallFace, wallPos, false);
+        // Symulujemy kliknięcie dokładnie tej ściany, którą widzi gracz
+        BlockHitResult newHit = new BlockHitResult(
+                wallHit.getLocation(),
+                wallFace,
+                wallPos,
+                false
+        );
 
         // Wywołujemy vanilla useItemOn z nowym hitem, wyłączając nasz kod na ten czas
         entity_optimizer$placingPainting = true;
@@ -187,6 +159,52 @@ public class ClientPlayerInteractionManagerMixin {
 
         cir.setReturnValue(result);
         cir.cancel();
+    }
+
+    /**
+     * Raycast od oczu gracza w kierunku wzroku, ignorując cobweby i bannery.
+     * Zwraca pierwszy napotkany "normalny" blok.
+     */
+    private BlockHitResult findWallIgnoringThroughBlocks(LocalPlayer player) {
+        final int MAX_STEPS = 8;
+        final double REACH = 5.0D; // zasięg "ręki" w survivalu
+
+        Vec3 eye = player.getEyePosition(1.0F);
+        Vec3 look = player.getViewVector(1.0F);
+
+        Vec3 from = eye;
+
+        for (int i = 0; i < MAX_STEPS; i++) {
+            Vec3 to = eye.add(look.scale(REACH));
+
+            ClipContext ctx = new ClipContext(
+                    from,
+                    to,
+                    ClipContext.Block.OUTLINE,
+                    ClipContext.Fluid.NONE,
+                    player
+            );
+
+            HitResult generic = minecraft.level.clip(ctx);
+            if (generic.getType() != HitResult.Type.BLOCK) {
+                return null;
+            }
+
+            BlockHitResult res = (BlockHitResult) generic;
+            BlockPos pos = res.getBlockPos();
+            BlockState state = minecraft.level.getBlockState(pos);
+
+            if (isThroughBlock(state)) {
+                // ignorujemy ten blok – przesuwamy start tuż za nim i szukamy dalej
+                from = res.getLocation().add(look.scale(0.05D));
+                continue;
+            }
+
+            // trafiliśmy normalny blok – to będzie nasza ściana
+            return res;
+        }
+
+        return null;
     }
 
     // Czy blok jest takim, przez który chcemy „przekładać” obraz
