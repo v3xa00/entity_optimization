@@ -239,7 +239,7 @@ public class EntityOptimizerMod implements ClientModInitializer {
             source.sendFeedback(Component.literal("§7(brak tooltipu)"));
         } else {
             for (String line : tooltipLines) {
-                String color = line.contains("Dodatkowe Obrażenia") ? "§e" : "§7";
+                String color = line.contains("Dodatkowe") ? "§e" : "§7";
                 source.sendFeedback(Component.literal(color + line));
             }
         }
