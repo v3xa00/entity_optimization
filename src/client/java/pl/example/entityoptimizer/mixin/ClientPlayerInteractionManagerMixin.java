@@ -75,7 +75,7 @@ public class ClientPlayerInteractionManagerMixin {
 
     /**
      * SHIFT + PPM z obrazem na cobwebie:
-     * - spróbuj postawić obraz na ścianie ZA cobwebem (po stronie przeciwnej do klikniętej).
+     * - postaw obraz NA TEJ ŚCIANIE, KTÓRĄ WIDZISZ ZA COBWEBEM, tak jakbyś kliknął bezpośrednio w ścianę.
      *
      * Uwaga: w 1.20.1 MultiPlayerGameMode.useItemOn(LocalPlayer, ...) – stąd LocalPlayer w sygnaturze.
      */
@@ -109,19 +109,22 @@ public class ClientPlayerInteractionManagerMixin {
             return;
         }
 
-        // kierunek do ściany: PRZECIWNY do strony cobweb'a, którą kliknęliśmy
-        Direction towardWall = hit.getDirection().getOpposite();
-        BlockPos wallPos = cobwebPos.relative(towardWall);
+        // kierunek STRONY, na której ma wisieć obraz (ta, którą widzisz)
+        Direction wallFace = hit.getDirection();               // np. SOUTH, gdy patrzysz na ścianę od swojej strony
+        // kierunek DO ściany (od cobweb'a do bloku ściany)
+        Direction toWall = wallFace.getOpposite();             // np. NORTH – do środka ściany
+
+        BlockPos wallPos = cobwebPos.relative(toWall);
         BlockState wallState = minecraft.level.getBlockState(wallPos);
 
-        // ściana musi być solidna z przeciwnej strony (tam przyczepi się obraz)
-        if (!wallState.isFaceSturdy(minecraft.level, wallPos, towardWall.getOpposite())) {
+        // ściana musi być solidna na tej twarzy, na której chcemy powiesić obraz
+        if (!wallState.isFaceSturdy(minecraft.level, wallPos, wallFace)) {
             return;
         }
 
-        // symulujemy kliknięcie na środku ściany
+        // symulujemy kliknięcie dokładnie na tej twarzy ściany, którą widzisz (jak bez cobweb'a)
         Vec3 hitVec = Vec3.atCenterOf(wallPos);
-        BlockHitResult newHit = new BlockHitResult(hitVec, towardWall, wallPos, false);
+        BlockHitResult newHit = new BlockHitResult(hitVec, wallFace, wallPos, false);
 
         // wywołujemy vanilla useItemOn z nowym hitem, wyłączając nasz kod na ten czas
         entity_optimizer$placingPainting = true;
