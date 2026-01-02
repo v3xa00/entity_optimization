@@ -24,9 +24,9 @@ import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
-import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+import org.spongepowered.asmination.injection.At;
+import org.spongepowered.asmination.injection.Inject;
+import org.spongepowered.asmination.injection.callback.CallbackInfoReturnable;
 import pl.example.entityoptimizer.EntityOptimizerMod;
 
 @Mixin(MultiPlayerGameMode.class)
@@ -36,7 +36,7 @@ public class ClientPlayerInteractionManagerMixin {
 
     private static boolean entity_optimizer$placingPainting = false;
 
-    // ========== ENTITY INTERACT (minecarty, villager, SHIFT+PPM) ==========
+    // ========== ENTITY INTERACT ==========
 
     @Inject(method = "interact", at = @At("HEAD"), cancellable = true)
     private void entity_optimizer$interact(Player player,
@@ -73,7 +73,7 @@ public class ClientPlayerInteractionManagerMixin {
         }
     }
 
-    // ========== BLOCK USE (crafting, obrazy przez cobweb/banner) ==========
+    // ========== BLOCK USE (crafting, obrazy) ==========
 
     @Inject(method = "useItemOn", at = @At("HEAD"), cancellable = true)
     private void entity_optimizer$placePaintingThroughBlocks(LocalPlayer player,
@@ -112,7 +112,7 @@ public class ClientPlayerInteractionManagerMixin {
             return;
         }
 
-        // reagujemy tylko jeśli kliknięto cobweb lub banner
+        // reagujemy tylko jeśli GUI mówi, że kliknęliśmy w cobweb lub banner
         if (!isThroughBlock(clickedState)) {
             System.out.println("[EO-DBG] useItemOn: to NIE jest cobweb/banner – nie zmieniam nic");
             return;
@@ -161,20 +161,19 @@ public class ClientPlayerInteractionManagerMixin {
 
     /**
      * Raycast od oczu gracza w kierunku wzroku:
-     * - jeśli trafiamy cobweb/banner -> przesuwamy start tuż za niego i szukamy dalej,
+     * - jeśli trafiamy cobweb/banner -> przesuwamy FROM wyraźnie ZA ten blok (o 0.6 w kierunku wzroku)
+     *   i szukamy dalej z nowym FROM,
      * - pierwszy inny blok (OUTLINE) to nasza ściana.
      */
     private BlockHitResult findWallIgnoringThroughBlocks(LocalPlayer player) {
         final int MAX_STEPS = 8;
-        final double REACH = 6.0D;
+        final double STEP_REACH = 6.0D;
 
-        Vec3 eye = player.getEyePosition(1.0F);
-        Vec3 look = player.getViewVector(1.0F);
-
-        Vec3 from = eye;
+        Vec3 look = player.getViewVector(1.0F).normalize();
+        Vec3 from = player.getEyePosition(1.0F);
 
         for (int i = 0; i < MAX_STEPS; i++) {
-            Vec3 to = eye.add(look.scale(REACH));
+            Vec3 to = from.add(look.scale(STEP_REACH));
 
             ClipContext ctx = new ClipContext(
                     from,
@@ -196,8 +195,9 @@ public class ClientPlayerInteractionManagerMixin {
             System.out.println("[EO-DBG] findWall: trafiono pos=" + pos + " block=" + state.getBlock());
 
             if (isThroughBlock(state)) {
-                System.out.println("[EO-DBG] findWall: to throughBlock – przesuwam FROM za niego i szukam dalej");
-                from = res.getLocation().add(look.scale(0.05D));
+                // PRZESUŃ SIĘ WYRAŹNIE ZA TEN BLOK (0.6 w kierunku wzroku), żeby nie trafiać go ponownie
+                from = res.getLocation().add(look.scale(0.6D));
+                System.out.println("[EO-DBG] findWall: to throughBlock – nowy FROM=" + from);
                 continue;
             }
 
