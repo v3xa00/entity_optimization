@@ -77,11 +77,12 @@ public class ClientPlayerInteractionManagerMixin {
 
     /**
      * PPM z obrazem (painting) na cobwebie lub bannerze:
-     * - zamiast próbować „postawić obraz na cobwebie/bannerze”,
-     *   stawiamy go NA ŚCIANIE ZA TYM BLOKIEM, po naszej stronie (tak jakby cobweb/banner nie istniał).
+     * - obraz stawiany jest na ścianie ZA tym blokiem
+     * - blok ściany wybierany jest na podstawie miejsca kliknięcia:
+     *   lewo/środek/prawo na cobwebie/bannerze -> lewy/środkowy/prawy blok ściany.
      *
      * Dodatkowo:
-     * - blokujemy PPM na crafting table (żeby nie otwierał craftingu).
+     * - blokuje PPM na crafting table (nie otwiera GUI).
      *
      * Uwaga: w 1.20.1 MultiPlayerGameMode.useItemOn(LocalPlayer, ...) – stąd LocalPlayer w sygnaturze.
      */
@@ -124,22 +125,59 @@ public class ClientPlayerInteractionManagerMixin {
             return;
         }
 
+        // Pełna pozycja trafienia (ułamek w obrębie bloku 0..1)
+        Vec3 hitVec = hit.getLocation();
+        double localX = hitVec.x - clickedPos.getX(); // 0..1 względem bloku
+        double localZ = hitVec.z - clickedPos.getZ(); // 0..1 względem bloku
+
         // Strona ściany, na której ma wisieć obraz (ta, którą widzisz)
         Direction wallFace = hit.getDirection();
-        // Kierunek od klikniętego bloku DO ściany (od cobweb/banner do ściany)
+        // Bazowy blok ściany ZA klikniętym blokiem
         Direction toWall = wallFace.getOpposite();
+        BlockPos baseWallPos = clickedPos.relative(toWall);
+        BlockPos wallPos = baseWallPos;
 
-        BlockPos wallPos = clickedPos.relative(toWall);
-        BlockState wallState = minecraft.level.getBlockState(wallPos);
-
-        // Ściana musi być solidna na tej twarzy, na której chcemy powiesić obraz
-        if (!wallState.isFaceSturdy(minecraft.level, wallPos, wallFace)) {
-            return;
+        // Lewo/środek/prawo w poziomie – zależnie od orientacji ściany
+        switch (wallFace) {
+            case NORTH:
+            case SOUTH: {
+                // Płaszczyzna X/Y – przesuwamy wzdłuż X
+                if (localX < 0.33) {
+                    wallPos = baseWallPos.relative(Direction.WEST);
+                } else if (localX > 0.66) {
+                    wallPos = baseWallPos.relative(Direction.EAST);
+                }
+                break;
+            }
+            case EAST:
+            case WEST: {
+                // Płaszczyzna Z/Y – przesuwamy wzdłuż Z
+                if (localZ < 0.33) {
+                    wallPos = baseWallPos.relative(Direction.NORTH);
+                } else if (localZ > 0.66) {
+                    wallPos = baseWallPos.relative(Direction.SOUTH);
+                }
+                break;
+            }
+            default:
+                // inne kierunki nas nie interesują
+                break;
         }
 
-        // Symulujemy kliknięcie na środku tej ściany (jak bez cobweb/banner)
-        Vec3 hitVec = Vec3.atCenterOf(wallPos);
-        BlockHitResult newHit = new BlockHitResult(hitVec, wallFace, wallPos, false);
+        BlockState wallState = minecraft.level.getBlockState(wallPos);
+
+        // jeśli w wybranym miejscu nie ma solidnej ściany, wracamy do bazowego
+        if (!wallState.isFaceSturdy(minecraft.level, wallPos, wallFace)) {
+            wallPos = baseWallPos;
+            wallState = minecraft.level.getBlockState(wallPos);
+            if (!wallState.isFaceSturdy(minecraft.level, wallPos, wallFace)) {
+                return;
+            }
+        }
+
+        // Symulujemy kliknięcie na środku wybranego bloku ściany (jak bez cobweb/banner)
+        Vec3 wallCenter = Vec3.atCenterOf(wallPos);
+        BlockHitResult newHit = new BlockHitResult(wallCenter, wallFace, wallPos, false);
 
         // Wywołujemy vanilla useItemOn z nowym hitem, wyłączając nasz kod na ten czas
         entity_optimizer$placingPainting = true;
