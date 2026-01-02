@@ -34,54 +34,47 @@ public class ClientPlayerInteractionManagerMixin {
 
     private static boolean entity_optimizer$placingPainting = false;
 
-    /**
-     * - SHIFT + PPM na graczu: tooltip miecza
-     * - blokada wagoników
-     * - blokada villagerów bez profesji
-     */
-    @Inject(method = "interact", at = @At("HEAD"), cancellable = true)
-    private void entity_optimizer$interact(Player player,
-                                           Entity entity,
-                                           InteractionHand hand,
-                                           CallbackInfoReturnable<InteractionResult> cir) {
+    // ========== ENTITY INTERACT ==========
 
-        // SHIFT + PPM na innym graczu -> tooltip miecza
+    @Inject(method = "interact", at = @At("HEAD"), cancellable = true)
+    private void eo$interact(Player player,
+                             Entity entity,
+                             InteractionHand hand,
+                             CallbackInfoReturnable<InteractionResult> cir) {
+
         if (entity instanceof Player target
                 && target != player
                 && player.isCrouching()
                 && hand == InteractionHand.MAIN_HAND) {
 
+            System.out.println("[EO-DBG-1.20] interact: SHIFT+PPM na graczu " + target.getGameProfile().getName());
             EntityOptimizerMod.onShiftRightClickPlayer(target);
         }
 
-        // blokada wagoników
         if (entity instanceof AbstractMinecart) {
+            System.out.println("[EO-DBG-1.20] interact: blokuję PPM na minecarcie");
             cir.setReturnValue(InteractionResult.FAIL);
             cir.cancel();
             return;
         }
 
-        // blokada villagerów bez profesji
         if (entity instanceof Villager villager) {
             VillagerProfession profession = villager.getVillagerData().getProfession();
             if (profession == VillagerProfession.NONE || profession == VillagerProfession.NITWIT) {
+                System.out.println("[EO-DBG-1.20] interact: blokuję PPM na villagerze bez profesji");
                 cir.setReturnValue(InteractionResult.FAIL);
                 cir.cancel();
             }
         }
     }
 
-    /**
-     * - blokada craftingu (zależna od EntityOptimizerMod.craftingDisabled)
-     * - PPM obrazem w cobweb/banner:
-     *   w linii za klikniętym blokiem idziemy przez kolejne cobweby/bannery,
-     *   pierwszy "normalny" blok traktujemy jako ścianę i stawiamy tam obraz.
-     */
+    // ========== BLOCK USE ==========
+
     @Inject(method = "useItemOn", at = @At("HEAD"), cancellable = true)
-    private void entity_optimizer$placePaintingThroughBlocks(LocalPlayer player,
-                                                             InteractionHand hand,
-                                                             BlockHitResult hit,
-                                                             CallbackInfoReturnable<InteractionResult> cir) {
+    private void eo$useItemOn(LocalPlayer player,
+                              InteractionHand hand,
+                              BlockHitResult hit,
+                              CallbackInfoReturnable<InteractionResult> cir) {
         if (entity_optimizer$placingPainting) {
             return;
         }
@@ -92,8 +85,14 @@ public class ClientPlayerInteractionManagerMixin {
         BlockPos clickedPos = hit.getBlockPos();
         BlockState clickedState = minecraft.level.getBlockState(clickedPos);
 
+        System.out.println("[EO-DBG-1.20] useItemOn: hand=" + hand
+                + " stack=" + player.getItemInHand(hand).getItem()
+                + " clicked=" + clickedState.getBlock()
+                + " pos=" + clickedPos);
+
         // blokada craftingu
         if (EntityOptimizerMod.craftingDisabled && clickedState.is(Blocks.CRAFTING_TABLE)) {
+            System.out.println("[EO-DBG-1.20] useItemOn: craftingDisabled=true, blokuję crafting");
             cir.setReturnValue(InteractionResult.FAIL);
             cir.cancel();
             return;
@@ -108,57 +107,64 @@ public class ClientPlayerInteractionManagerMixin {
             return;
         }
 
-        // reagujemy tylko na cobweb lub banner
         if (!isThroughBlock(clickedState)) {
+            System.out.println("[EO-DBG-1.20] useItemOn: to NIE jest cobweb/banner – nie zmieniam nic");
             return;
         }
 
-        // kierunek, w który MA wisieć obraz (ta strona ściany, którą widzisz)
+        System.out.println("[EO-DBG-1.20] useItemOn: kliknięto throughBlock=" + clickedState.getBlock());
+
+        // kierunek, w który MA wisieć obraz (strona ściany)
         Direction wallFace = hit.getDirection();
-        // kierunek od klikniętego bloku DO ściany (w głąb)
+        // kierunek DO ściany (od tego bloku w głąb)
         Direction toWall = wallFace.getOpposite();
 
         BlockPos cur = clickedPos;
         BlockPos wallPos = null;
 
-        // przechodzimy maks. 8 bloków w głąb, omijając kolejne cobweby/bannery
         for (int i = 0; i < 8; i++) {
             cur = cur.relative(toWall);
             BlockState s = minecraft.level.getBlockState(cur);
+            System.out.println("[EO-DBG-1.20] scan step " + i + " pos=" + cur + " block=" + s.getBlock());
 
             if (isThroughBlock(s)) {
-                continue; // kolejny cobweb/banner – idziemy dalej
+                System.out.println("[EO-DBG-1.20] step " + i + ": kolejny throughBlock – idę dalej");
+                continue;
             }
 
             wallPos = cur;
+            System.out.println("[EO-DBG-1.20] znaleziono ścianę na pos=" + wallPos + " block=" + s.getBlock());
             break;
         }
 
         if (wallPos == null) {
+            System.out.println("[EO-DBG-1.20] NIE znaleziono ściany w 8 krokach – nie stawiam obrazu");
             return;
         }
 
         BlockState wallState = minecraft.level.getBlockState(wallPos);
 
-        // ściana musi być solidna na tej twarzy, na której chcemy powiesić obraz
         if (!wallState.isFaceSturdy(minecraft.level, wallPos, wallFace)) {
+            System.out.println("[EO-DBG-1.20] ściana na pos=" + wallPos + " nie jest sturdy na face=" + wallFace);
             return;
         }
 
-        // udajemy kliknięcie na środku tego bloku ściany
         Vec3 hitVec = Vec3.atCenterOf(wallPos);
         BlockHitResult newHit = new BlockHitResult(hitVec, wallFace, wallPos, false);
+
+        System.out.println("[EO-DBG-1.20] wywołuję vanilla useItemOn na wallPos=" + wallPos);
 
         entity_optimizer$placingPainting = true;
         InteractionResult result = ((MultiPlayerGameMode) (Object) this)
                 .useItemOn(player, hand, newHit);
         entity_optimizer$placingPainting = false;
 
+        System.out.println("[EO-DBG-1.20] vanilla useItemOn zwrócił " + result);
+
         cir.setReturnValue(result);
         cir.cancel();
     }
 
-    // Czy blok jest cobwebem lub bannerem (stojącym/ściennym)
     private static boolean isThroughBlock(BlockState state) {
         if (state.is(Blocks.COBWEB)) {
             return true;
