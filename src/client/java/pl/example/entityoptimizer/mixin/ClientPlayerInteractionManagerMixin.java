@@ -2,6 +2,7 @@ package pl.example.entityoptimizer.mixin;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.MultiPlayerGameMode;
+import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.InteractionHand;
@@ -27,17 +28,16 @@ import pl.example.entityoptimizer.EntityOptimizerMod;
 @Mixin(MultiPlayerGameMode.class)
 public class ClientPlayerInteractionManagerMixin {
 
-    // dostęp do Minecrafta z MultiPlayerGameMode
     @Shadow private Minecraft minecraft;
 
-    // flaga, żeby uniknąć rekurencji przy własnym wywołaniu useItemOn
+    // flaga, żeby uniknąć rekurencji przy naszym ponownym wywołaniu useItemOn
     private static boolean entity_optimizer$placingPainting = false;
 
     /**
      * Blokuje interakcje z entity:
      * - wszystkie wagoniki (AbstractMinecart),
      * - villagerzy bez profesji (NONE, NITWIT),
-     * - SHIFT + PPM na graczu pokazuje tooltip miecza.
+     * + SHIFT + PPM na graczu pokazuje tooltip miecza.
      */
     @Inject(method = "interact", at = @At("HEAD"), cancellable = true)
     private void entity_optimizer$interact(Player player,
@@ -52,7 +52,7 @@ public class ClientPlayerInteractionManagerMixin {
                 && hand == InteractionHand.MAIN_HAND) {
 
             EntityOptimizerMod.onShiftRightClickPlayer(target);
-            // nie anulujemy – normalna logika i tak zwykle nic nie robi
+            // nie anulujemy – vanilla i tak zwykle nic nie robi
         }
 
         // 1) Blokuj interakcje z dowolnym wagonikiem (minecart)
@@ -75,15 +75,17 @@ public class ClientPlayerInteractionManagerMixin {
 
     /**
      * SHIFT + PPM z obrazem na cobwebie:
-     * - spróbuj postawić obraz na ścianie za cobwebem.
+     * - postaw obraz na ścianie za cobwebem (jeśli się da).
+     *
+     * Uwaga: w 1.20.1 MultiPlayerGameMode.useItemOn(LocalPlayer, ...) – stąd LocalPlayer w sygnaturze.
      */
     @Inject(method = "useItemOn", at = @At("HEAD"), cancellable = true)
-    private void entity_optimizer$placePaintingBehindCobweb(Player player,
+    private void entity_optimizer$placePaintingBehindCobweb(LocalPlayer player,
                                                             InteractionHand hand,
                                                             BlockHitResult hit,
                                                             CallbackInfoReturnable<InteractionResult> cir) {
         if (entity_optimizer$placingPainting) {
-            // to jest nasze własne ponowne wywołanie – nie rób nic specjalnego
+            // to jest nasze własne, wtórne wywołanie – nie rób nic
             return;
         }
 
@@ -107,7 +109,7 @@ public class ClientPlayerInteractionManagerMixin {
             return;
         }
 
-        // kierunek, w który klikamy cobweb (ściana za cobwebem w tym kierunku)
+        // kierunek, w który klikamy cobweb (tam jest ściana za cobwebem)
         Direction towardWall = hit.getDirection();
         BlockPos wallPos = cobwebPos.relative(towardWall);
         BlockState wallState = minecraft.level.getBlockState(wallPos);
@@ -117,11 +119,11 @@ public class ClientPlayerInteractionManagerMixin {
             return;
         }
 
-        // hit na środek bloku ściany, kierunek jak oryginalny
+        // symulujemy kliknięcie na środku ściany
         Vec3 hitVec = Vec3.atCenterOf(wallPos);
         BlockHitResult newHit = new BlockHitResult(hitVec, towardWall, wallPos, false);
 
-        // wywołujemy vanilla useItemOn z nowym hitem, ale wyłączamy naszą logikę
+        // wywołujemy vanilla useItemOn z nowym hitem, wyłączając nasz kod na ten czas
         entity_optimizer$placingPainting = true;
         InteractionResult result = ((MultiPlayerGameMode) (Object) this)
                 .useItemOn(player, hand, newHit);
