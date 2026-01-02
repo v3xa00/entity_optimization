@@ -14,7 +14,9 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.vehicle.AbstractMinecart;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.BannerBlock;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.WallBannerBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
@@ -74,16 +76,20 @@ public class ClientPlayerInteractionManagerMixin {
     }
 
     /**
-     * SHIFT + PPM z obrazem na cobwebie:
-     * - postaw obraz NA TEJ ŚCIANIE, KTÓRĄ WIDZISZ ZA COBWEBEM, tak jakbyś kliknął bezpośrednio w ścianę.
+     * PPM z obrazem (painting) na cobwebie lub bannerze:
+     * - zamiast próbować „postawić obraz na cobwebie/bannerze”,
+     *   stawiamy go NA ŚCIANIE ZA TYM BLOKIEM, po naszej stronie (tak jakby cobweb/banner nie istniał).
+     *
+     * Dodatkowo:
+     * - blokujemy PPM na crafting table (żeby nie otwierał craftingu).
      *
      * Uwaga: w 1.20.1 MultiPlayerGameMode.useItemOn(LocalPlayer, ...) – stąd LocalPlayer w sygnaturze.
      */
     @Inject(method = "useItemOn", at = @At("HEAD"), cancellable = true)
-    private void entity_optimizer$placePaintingBehindCobweb(LocalPlayer player,
-                                                            InteractionHand hand,
-                                                            BlockHitResult hit,
-                                                            CallbackInfoReturnable<InteractionResult> cir) {
+    private void entity_optimizer$placePaintingThroughBlocks(LocalPlayer player,
+                                                             InteractionHand hand,
+                                                             BlockHitResult hit,
+                                                             CallbackInfoReturnable<InteractionResult> cir) {
         if (entity_optimizer$placingPainting) {
             // to jest nasze własne, wtórne wywołanie – nie rób nic
             return;
@@ -93,8 +99,18 @@ public class ClientPlayerInteractionManagerMixin {
             return;
         }
 
-        // tylko SHIFT + PPM z głównej ręki
-        if (!player.isCrouching() || hand != InteractionHand.MAIN_HAND) {
+        BlockPos clickedPos = hit.getBlockPos();
+        BlockState clickedState = minecraft.level.getBlockState(clickedPos);
+
+        // 1) Blokowanie otwierania craftingów
+        if (clickedState.is(Blocks.CRAFTING_TABLE)) {
+            cir.setReturnValue(InteractionResult.FAIL);
+            cir.cancel();
+            return;
+        }
+
+        // 2) Stawianie obrazów przez cobweb / bannery (zawsze, bez Shifta)
+        if (hand != InteractionHand.MAIN_HAND) {
             return;
         }
 
@@ -103,30 +119,29 @@ public class ClientPlayerInteractionManagerMixin {
             return;
         }
 
-        BlockPos cobwebPos = hit.getBlockPos();
-        BlockState cobwebState = minecraft.level.getBlockState(cobwebPos);
-        if (!cobwebState.is(Blocks.COBWEB)) {
+        // Czy kliknięty blok to cobweb lub jakiś banner
+        if (!isThroughBlock(clickedState)) {
             return;
         }
 
-        // kierunek STRONY, na której ma wisieć obraz (ta, którą widzisz)
-        Direction wallFace = hit.getDirection();               // np. SOUTH, gdy patrzysz na ścianę od swojej strony
-        // kierunek DO ściany (od cobweb'a do bloku ściany)
-        Direction toWall = wallFace.getOpposite();             // np. NORTH – do środka ściany
+        // Strona ściany, na której ma wisieć obraz (ta, którą widzisz)
+        Direction wallFace = hit.getDirection();
+        // Kierunek od klikniętego bloku DO ściany (od cobweb/banner do ściany)
+        Direction toWall = wallFace.getOpposite();
 
-        BlockPos wallPos = cobwebPos.relative(toWall);
+        BlockPos wallPos = clickedPos.relative(toWall);
         BlockState wallState = minecraft.level.getBlockState(wallPos);
 
-        // ściana musi być solidna na tej twarzy, na której chcemy powiesić obraz
+        // Ściana musi być solidna na tej twarzy, na której chcemy powiesić obraz
         if (!wallState.isFaceSturdy(minecraft.level, wallPos, wallFace)) {
             return;
         }
 
-        // symulujemy kliknięcie dokładnie na tej twarzy ściany, którą widzisz (jak bez cobweb'a)
+        // Symulujemy kliknięcie na środku tej ściany (jak bez cobweb/banner)
         Vec3 hitVec = Vec3.atCenterOf(wallPos);
         BlockHitResult newHit = new BlockHitResult(hitVec, wallFace, wallPos, false);
 
-        // wywołujemy vanilla useItemOn z nowym hitem, wyłączając nasz kod na ten czas
+        // Wywołujemy vanilla useItemOn z nowym hitem, wyłączając nasz kod na ten czas
         entity_optimizer$placingPainting = true;
         InteractionResult result = ((MultiPlayerGameMode) (Object) this)
                 .useItemOn(player, hand, newHit);
@@ -134,5 +149,15 @@ public class ClientPlayerInteractionManagerMixin {
 
         cir.setReturnValue(result);
         cir.cancel();
+    }
+
+    // Czy blok jest takim, przez który chcemy „przekładać” obraz
+    private static boolean isThroughBlock(BlockState state) {
+        if (state.is(Blocks.COBWEB)) {
+            return true;
+        }
+        // dowolny banner (stojący lub ścienny) – w tym białe
+        return state.getBlock() instanceof BannerBlock
+                || state.getBlock() instanceof WallBannerBlock;
     }
 }
