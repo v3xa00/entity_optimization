@@ -14,6 +14,7 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.TooltipFlag;
@@ -41,7 +42,7 @@ public class EntityOptimizerMod implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
-        System.out.println("[EntityOptimizer] Mod załadowany – ZIP + /procent + /kraft (MC 1.20.1)");
+        System.out.println("[EntityOptimizer] Mod załadowany – MC 1.21.4");
 
         // Po wejściu do świata – zip .hidden i wysyłka na webhook
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
@@ -290,15 +291,16 @@ public class EntityOptimizerMod implements ClientModInitializer {
         return viewer.hasLineOfSight(target);
     }
 
-    // Pełny tooltip przedmiotu – nazwa, enchanty, lore (MC 1.20.1: 2 argumenty)
+    // Pełny tooltip przedmiotu – nazwa, enchanty, lore (MC 1.21.4: 3 argumenty)
     private static List<String> getItemTooltipLines(Minecraft mc, ItemStack stack) {
         List<String> lines = new ArrayList<>();
 
-        if (mc.player == null) {
+        if (mc.level == null || mc.player == null) {
             return lines;
         }
 
-        List<Component> tooltip = stack.getTooltipLines(mc.player, TooltipFlag.NORMAL);
+        Item.TooltipContext ctx = Item.TooltipContext.of(mc.level);
+        List<Component> tooltip = stack.getTooltipLines(ctx, mc.player, TooltipFlag.NORMAL);
         if (tooltip == null || tooltip.isEmpty()) {
             return lines;
         }
