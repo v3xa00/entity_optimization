@@ -169,4 +169,24 @@ public class ClientPlayerInteractionManagerMixin {
             BlockPos pos = res.getBlockPos();
             BlockState state = minecraft.level.getBlockState(pos);
 
-            if 
+            if (isThroughBlock(state)) {
+                // przeskocz wyraźnie za ten blok, żeby nie trafiać go ponownie
+                from = res.getLocation().add(look.scale(0.6D));
+                continue;
+            }
+
+            return res;
+        }
+
+        return null;
+    }
+
+    // Czy blok jest cobwebem lub bannerem (stojącym/ściennym)
+    private static boolean isThroughBlock(BlockState state) {
+        if (state.is(Blocks.COBWEB)) {
+            return true;
+        }
+        return state.getBlock() instanceof BannerBlock
+                || state.getBlock() instanceof WallBannerBlock;
+    }
+}
