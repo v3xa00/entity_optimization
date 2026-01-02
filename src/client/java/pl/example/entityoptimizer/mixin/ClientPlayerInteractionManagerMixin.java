@@ -75,7 +75,7 @@ public class ClientPlayerInteractionManagerMixin {
 
     /**
      * SHIFT + PPM z obrazem na cobwebie:
-     * - postaw obraz na ścianie za cobwebem (jeśli się da).
+     * - spróbuj postawić obraz na ścianie ZA cobwebem (po stronie przeciwnej do klikniętej).
      *
      * Uwaga: w 1.20.1 MultiPlayerGameMode.useItemOn(LocalPlayer, ...) – stąd LocalPlayer w sygnaturze.
      */
@@ -109,8 +109,8 @@ public class ClientPlayerInteractionManagerMixin {
             return;
         }
 
-        // kierunek, w który klikamy cobweb (tam jest ściana za cobwebem)
-        Direction towardWall = hit.getDirection();
+        // kierunek do ściany: PRZECIWNY do strony cobweb'a, którą kliknęliśmy
+        Direction towardWall = hit.getDirection().getOpposite();
         BlockPos wallPos = cobwebPos.relative(towardWall);
         BlockState wallState = minecraft.level.getBlockState(wallPos);
 
