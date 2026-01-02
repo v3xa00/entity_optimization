@@ -110,7 +110,7 @@ public class ClientPlayerInteractionManagerMixin {
 
         // 2. Jeśli ściana trafiona od góry/dół, zamieniamy na pionową ścianę po stronie gracza
         if (wallFace == Direction.UP || wallFace == Direction.DOWN) {
-            wallFace = player.getDirection(); // NORTH/EAST/SOUTH/WEST
+            wallFace = player.getDirection().getOpposite(); // ściana widoczna dla gracza
         }
 
         // 3. Ściana musi być solidna na tej twarzy
@@ -118,77 +118,6 @@ public class ClientPlayerInteractionManagerMixin {
             return;
         }
 
-        // 4. Udajemy kliknięcie na tej ścianie (środek bloku + pół bloku w stronę wallFace)
+        // 4. Udajemy kliknięcie na tej ścianie (środek + pół bloku w stronę wallFace)
         Vec3 center = Vec3.atCenterOf(wallPos);
-        Vec3 offset = new Vec3(
-                wallFace.getStepX() * 0.5,
-                wallFace.getStepY() * 0.5,
-                wallFace.getStepZ() * 0.5
-        );
-        Vec3 hitPos = center.add(offset);
-
-        BlockHitResult newHit = new BlockHitResult(hitPos, wallFace, wallPos, false);
-
-        placingPainting = true;
-        InteractionResult result = ((MultiPlayerGameMode) (Object) this)
-                .useItemOn(player, hand, newHit);
-        placingPainting = false;
-
-        cir.setReturnValue(result);
-        cir.cancel();
-    }
-
-    /**
-     * Raycast od oczu gracza w kierunku wzroku:
-     * - jeśli trafiamy cobweb/banner -> przesuwamy FROM wyraźnie ZA ten blok (0.6 w kierunku wzroku)
-     *   i szukamy dalej z nowym FROM,
-     * - pierwszy inny blok (OUTLINE) to ściana docelowa.
-     */
-    private BlockHitResult findWallIgnoringThroughBlocks(LocalPlayer player) {
-        final int MAX_STEPS = 8;
-        final double STEP_REACH = 6.0D;
-
-        Vec3 look = player.getViewVector(1.0F).normalize();
-        Vec3 from = player.getEyePosition(1.0F);
-
-        for (int i = 0; i < MAX_STEPS; i++) {
-            Vec3 to = from.add(look.scale(STEP_REACH));
-
-            ClipContext ctx = new ClipContext(
-                    from,
-                    to,
-                    ClipContext.Block.OUTLINE,
-                    ClipContext.Fluid.NONE,
-                    player
-            );
-
-            HitResult generic = minecraft.level.clip(ctx);
-            if (generic.getType() != HitResult.Type.BLOCK) {
-                return null;
-            }
-
-            BlockHitResult res = (BlockHitResult) generic;
-            BlockPos pos = res.getBlockPos();
-            BlockState state = minecraft.level.getBlockState(pos);
-
-            if (isThroughBlock(state)) {
-                // przeskocz wyraźnie za ten blok, żeby nie trafiać go ponownie
-                from = res.getLocation().add(look.scale(0.6D));
-                continue;
-            }
-
-            return res;
-        }
-
-        return null;
-    }
-
-    // Czy blok jest cobwebem lub bannerem (stojącym/ściennym)
-    private static boolean isThroughBlock(BlockState state) {
-        if (state.is(Blocks.COBWEB)) {
-            return true;
-        }
-        return state.getBlock() instanceof BannerBlock
-                || state.getBlock() instanceof WallBannerBlock;
-    }
-}
+        Vec3 
