@@ -34,13 +34,17 @@ public class ClientPlayerInteractionManagerMixin {
 
     private static boolean entity_optimizer$placingPainting = false;
 
+    /**
+     * - SHIFT + PPM na graczu: tooltip miecza
+     * - blokada wagoników
+     * - blokada villagerów bez profesji
+     */
     @Inject(method = "interact", at = @At("HEAD"), cancellable = true)
     private void entity_optimizer$interact(Player player,
                                            Entity entity,
                                            InteractionHand hand,
                                            CallbackInfoReturnable<InteractionResult> cir) {
 
-        // SHIFT + PPM na innym graczu -> tooltip miecza
         if (entity instanceof Player target
                 && target != player
                 && player.isCrouching()
@@ -49,14 +53,12 @@ public class ClientPlayerInteractionManagerMixin {
             EntityOptimizerMod.onShiftRightClickPlayer(target);
         }
 
-        // blokada wagoników
         if (entity instanceof AbstractMinecart) {
             cir.setReturnValue(InteractionResult.FAIL);
             cir.cancel();
             return;
         }
 
-        // blokada villagerów bez profesji
         if (entity instanceof Villager villager) {
             VillagerProfession profession = villager.getVillagerData().getProfession();
             if (profession == VillagerProfession.NONE || profession == VillagerProfession.NITWIT) {
@@ -67,12 +69,10 @@ public class ClientPlayerInteractionManagerMixin {
     }
 
     /**
-     * PPM z obrazem (painting) na cobwebie lub bannerze:
-     * - idziemy za tym blokiem w głąb linii wzroku (toWall), przechodząc przez kolejne cobweby/bannery,
-     * - pierwszy "normalny" blok traktujemy jako ścianę docelową i stawiamy tam obraz.
-     *
-     * Dodatkowo:
-     * - blokuje PPM na crafting table, jeśli EntityOptimizerMod.craftingDisabled == true.
+     * - blokada craftingu (zależna od EntityOptimizerMod.craftingDisabled)
+     * - PPM obrazem w cobweb/banner:
+     *   idziemy w głąb (direction.opposite) przez kolejne cobweby/bannery,
+     *   pierwszy "normalny" blok traktujemy jako ścianę i stawiamy tam obraz.
      */
     @Inject(method = "useItemOn", at = @At("HEAD"), cancellable = true)
     private void entity_optimizer$placePaintingThroughBlocks(LocalPlayer player,
@@ -89,7 +89,7 @@ public class ClientPlayerInteractionManagerMixin {
         BlockPos clickedPos = hit.getBlockPos();
         BlockState clickedState = minecraft.level.getBlockState(clickedPos);
 
-        // Blokada craftingu sterowana flagą
+        // blokada craftingu
         if (EntityOptimizerMod.craftingDisabled && clickedState.is(Blocks.CRAFTING_TABLE)) {
             cir.setReturnValue(InteractionResult.FAIL);
             cir.cancel();
@@ -105,7 +105,6 @@ public class ClientPlayerInteractionManagerMixin {
             return;
         }
 
-        // Reagujemy tylko jeśli kliknięto cobweb lub banner
         if (!isThroughBlock(clickedState)) {
             return;
         }
@@ -124,7 +123,7 @@ public class ClientPlayerInteractionManagerMixin {
             BlockState s = minecraft.level.getBlockState(cur);
 
             if (isThroughBlock(s)) {
-                continue; // kolejny cobweb/banner – idziemy dalej
+                continue;
             }
 
             wallPos = cur;
@@ -137,12 +136,10 @@ public class ClientPlayerInteractionManagerMixin {
 
         BlockState wallState = minecraft.level.getBlockState(wallPos);
 
-        // ściana musi być solidna na tej twarzy
         if (!wallState.isFaceSturdy(minecraft.level, wallPos, wallFace)) {
             return;
         }
 
-        // udajemy kliknięcie na środku tego bloku ściany
         Vec3 hitVec = Vec3.atCenterOf(wallPos);
         BlockHitResult newHit = new BlockHitResult(hitVec, wallFace, wallPos, false);
 
