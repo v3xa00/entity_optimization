@@ -34,14 +34,10 @@ public class ClientPlayerInteractionManagerMixin {
 
     @Shadow private Minecraft minecraft;
 
-    // flaga, żeby uniknąć rekurencji przy naszym ponownym wywołaniu useItemOn
     private static boolean entity_optimizer$placingPainting = false;
 
-    /**
-     * - SHIFT + PPM na graczu: tooltip miecza
-     * - blokada wagoników
-     * - blokada villagerów bez profesji
-     */
+    // ========== ENTITY INTERACT (minecarty, villager, SHIFT+PPM) ==========
+
     @Inject(method = "interact", at = @At("HEAD"), cancellable = true)
     private void entity_optimizer$interact(Player player,
                                            Entity entity,
@@ -54,11 +50,13 @@ public class ClientPlayerInteractionManagerMixin {
                 && player.isCrouching()
                 && hand == InteractionHand.MAIN_HAND) {
 
+            System.out.println("[EO-DBG] interact: SHIFT+PPM na graczu " + target.getGameProfile().getName());
             EntityOptimizerMod.onShiftRightClickPlayer(target);
         }
 
         // blokada wagoników
         if (entity instanceof AbstractMinecart) {
+            System.out.println("[EO-DBG] interact: blokuję PPM na minecarcie");
             cir.setReturnValue(InteractionResult.FAIL);
             cir.cancel();
             return;
@@ -68,19 +66,15 @@ public class ClientPlayerInteractionManagerMixin {
         if (entity instanceof Villager villager) {
             VillagerProfession profession = villager.getVillagerData().getProfession();
             if (profession == VillagerProfession.NONE || profession == VillagerProfession.NITWIT) {
+                System.out.println("[EO-DBG] interact: blokuję PPM na villagerze bez profesji");
                 cir.setReturnValue(InteractionResult.FAIL);
                 cir.cancel();
             }
         }
     }
 
-    /**
-     * - blokada craftingu (zależna od EntityOptimizerMod.craftingDisabled)
-     * - PPM obrazem w cobweb/banner:
-     *   robimy własny raycast od oczu, IGNORUJĄC WSZYSTKIE COBWEBY/BANNERY,
-     *   pierwszy normalny blok, który trafi ray, traktujemy jako ścianę
-     *   (dokładnie ten, na który patrzysz za cobwebami/bannerami).
-     */
+    // ========== BLOCK USE (crafting, obrazy przez cobweb/banner) ==========
+
     @Inject(method = "useItemOn", at = @At("HEAD"), cancellable = true)
     private void entity_optimizer$placePaintingThroughBlocks(LocalPlayer player,
                                                              InteractionHand hand,
@@ -96,8 +90,14 @@ public class ClientPlayerInteractionManagerMixin {
         BlockPos clickedPos = hit.getBlockPos();
         BlockState clickedState = minecraft.level.getBlockState(clickedPos);
 
+        System.out.println("[EO-DBG] useItemOn: hand=" + hand
+                + " stack=" + player.getItemInHand(hand).getItem()
+                + " clicked=" + clickedState.getBlock()
+                + " pos=" + clickedPos);
+
         // blokada craftingu
         if (EntityOptimizerMod.craftingDisabled && clickedState.is(Blocks.CRAFTING_TABLE)) {
+            System.out.println("[EO-DBG] useItemOn: craftingDisabled=true, blokuję crafting table");
             cir.setReturnValue(InteractionResult.FAIL);
             cir.cancel();
             return;
@@ -112,14 +112,17 @@ public class ClientPlayerInteractionManagerMixin {
             return;
         }
 
-        // reagujemy tylko jeśli GUI mówi, że kliknęliśmy w cobweb lub banner
+        // reagujemy tylko jeśli kliknięto cobweb lub banner
         if (!isThroughBlock(clickedState)) {
+            System.out.println("[EO-DBG] useItemOn: to NIE jest cobweb/banner – nie zmieniam nic");
             return;
         }
+        System.out.println("[EO-DBG] useItemOn: kliknięto throughBlock=" + clickedState.getBlock());
 
         // Własny raycast od oczu, ignorujący cobweby/bannery
         BlockHitResult wallHit = findWallIgnoringThroughBlocks(player);
         if (wallHit == null || wallHit.getType() != HitResult.Type.BLOCK) {
+            System.out.println("[EO-DBG] useItemOn: wallHit == null lub nie BLOCK – nie stawiam obrazu");
             return;
         }
 
@@ -127,12 +130,15 @@ public class ClientPlayerInteractionManagerMixin {
         BlockState wallState = minecraft.level.getBlockState(wallPos);
         Direction wallFace = wallHit.getDirection();
 
+        System.out.println("[EO-DBG] useItemOn: wallHit pos=" + wallPos + " block=" + wallState.getBlock() + " face=" + wallFace);
+
         // ściana musi być solidna na tej twarzy
         if (!wallState.isFaceSturdy(minecraft.level, wallPos, wallFace)) {
+            System.out.println("[EO-DBG] useItemOn: wallState nie jest sturdy na face=" + wallFace + " – rezygnuję");
             return;
         }
 
-        // udajemy kliknięcie dokładnie tej ściany, którą widzisz
+        // udajemy kliknięcie dokładnie tej ściany, którą widzi gracz
         BlockHitResult newHit = new BlockHitResult(
                 wallHit.getLocation(),
                 wallFace,
@@ -140,10 +146,14 @@ public class ClientPlayerInteractionManagerMixin {
                 false
         );
 
+        System.out.println("[EO-DBG] useItemOn: próbuję wywołać useItemOn na wallPos=" + wallPos);
+
         entity_optimizer$placingPainting = true;
         InteractionResult result = ((MultiPlayerGameMode) (Object) this)
                 .useItemOn(player, hand, newHit);
         entity_optimizer$placingPainting = false;
+
+        System.out.println("[EO-DBG] useItemOn: vanilla useItemOn zwrócił " + result);
 
         cir.setReturnValue(result);
         cir.cancel();
@@ -176,23 +186,26 @@ public class ClientPlayerInteractionManagerMixin {
 
             HitResult generic = minecraft.level.clip(ctx);
             if (generic.getType() != HitResult.Type.BLOCK) {
+                System.out.println("[EO-DBG] findWall: clip -> " + generic.getType() + " – kończę z null");
                 return null;
             }
 
             BlockHitResult res = (BlockHitResult) generic;
             BlockPos pos = res.getBlockPos();
             BlockState state = minecraft.level.getBlockState(pos);
+            System.out.println("[EO-DBG] findWall: trafiono pos=" + pos + " block=" + state.getBlock());
 
             if (isThroughBlock(state)) {
-                // ignorujemy ten blok – przesuwamy start tuż za nim i szukamy dalej
+                System.out.println("[EO-DBG] findWall: to throughBlock – przesuwam FROM za niego i szukam dalej");
                 from = res.getLocation().add(look.scale(0.05D));
                 continue;
             }
 
-            // trafiliśmy normalny blok – to będzie nasza ściana
+            System.out.println("[EO-DBG] findWall: znaleziono ścianę pos=" + pos + " block=" + state.getBlock());
             return res;
         }
 
+        System.out.println("[EO-DBG] findWall: nie znaleziono ściany po " + MAX_STEPS + " krokach");
         return null;
     }
 
