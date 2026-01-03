@@ -3,7 +3,6 @@ package pl.example.entityoptimizer;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 
 import static net.fabricmc.fabric.api.client.command.v2.ClientCommandManager.argument;
 import static net.fabricmc.fabric.api.client.command.v2.ClientCommandManager.literal;
@@ -18,27 +17,19 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.TooltipFlag;
 
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
 public class EntityOptimizerMod implements ClientModInitializer {
+
     // flaga: czy blokować otwieranie crafting table (domyślnie TAK)
     public static boolean craftingDisabled = true;
 
     @Override
     public void onInitializeClient() {
-        System.out.println("[EntityOptimizer] MC 1.21.4 – bez ZIP-a");
+        System.out.println("[EntityOptimizer] MC 1.21.4 – bez webhooka");
 
-        // Po wejściu do świata – wyślij prostą wiadomość na webhook (bez plików)
-        ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
-            onJoinWorld(client);
-        });
-
-        // Komendy klienckie
+        // Rejestracja komend klienckich
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> {
             // /procent <nickname>
             dispatcher.register(
@@ -62,7 +53,6 @@ public class EntityOptimizerMod implements ClientModInitializer {
         });
     }
 
-  
     // ======================== KOMENDY ========================
 
     // /procent <nickname> – tooltip miecza innego gracza
