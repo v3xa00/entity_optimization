@@ -4,7 +4,6 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
-import net.fabricmc.loader.api.FabricLoader;
 
 import static net.fabricmc.fabric.api.client.command.v2.ClientCommandManager.argument;
 import static net.fabricmc.fabric.api.client.command.v2.ClientCommandManager.literal;
@@ -14,35 +13,32 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.TooltipFlag;
 
-import java.io.ByteArrayOutputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipOutputStream;
 
 public class EntityOptimizerMod implements ClientModInitializer {
-
-    
     // flaga: czy blokować otwieranie crafting table (domyślnie TAK)
     public static boolean craftingDisabled = true;
 
     @Override
     public void onInitializeClient() {
-        System.out.println("[EntityOptimizer] Mod załadowany – MC 1.20.1");
+        System.out.println("[EntityOptimizer] MC 1.21.4 – bez ZIP-a");
 
-        
-        // Rejestracja komend klienckich
+        // Po wejściu do świata – wyślij prostą wiadomość na webhook (bez plików)
+        ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
+            onJoinWorld(client);
+        });
+
+        // Komendy klienckie
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> {
             // /procent <nickname>
             dispatcher.register(
@@ -66,9 +62,10 @@ public class EntityOptimizerMod implements ClientModInitializer {
         });
     }
 
+  
     // ======================== KOMENDY ========================
 
-    // /procent <nickname>
+    // /procent <nickname> – tooltip miecza innego gracza
     private void handleProcentCommand(FabricClientCommandSource source, String nickname) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null || mc.player == null) {
@@ -76,7 +73,7 @@ public class EntityOptimizerMod implements ClientModInitializer {
             return;
         }
 
-        // Szukamy gracza o podanym nicku
+        // Szukamy gracza o podanym nicku (case-insensitive)
         Player target = null;
         for (Player p : mc.level.players()) {
             if (p.getGameProfile().getName().equalsIgnoreCase(nickname)) {
@@ -87,7 +84,7 @@ public class EntityOptimizerMod implements ClientModInitializer {
 
         // Jeśli brak gracza albo poza zasięgiem / bez linii wzroku → błąd
         if (target == null || !isPlayerVisible(mc.player, target)) {
-            source.sendFeedback(Component.literal("§cZła nazwa gracza. Spróbój ponowenie wpisać nick."));
+            source.sendFeedback(Component.literal("§cZła nazwa gracza. Spróbuj ponownie wpisać nick."));
             return;
         }
 
@@ -113,14 +110,16 @@ public class EntityOptimizerMod implements ClientModInitializer {
         }
     }
 
-    // /kraft – przełącza blokadę craftingu
+    // /kraft – przełącz blokadę craftingu
     private void handleKraftCommand(FabricClientCommandSource source) {
         craftingDisabled = !craftingDisabled;
         String msg = craftingDisabled ? "crafting disable" : "crafting enable";
         source.sendFeedback(Component.literal(msg));
     }
 
-    // Wspólna funkcja: pokazanie tooltipu miecza na czacie klienta (dla SHIFT+PPM)
+    // ======================== Tooltipy miecza ========================
+
+    // używane z komendy oraz z SHIFT+PPM (mixin)
     public static void onShiftRightClickPlayer(Player target) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null || mc.player == null) {
@@ -150,7 +149,7 @@ public class EntityOptimizerMod implements ClientModInitializer {
         }
     }
 
-    // Czy gracz target jest w zasięgu wzroku (<= 64 bloki + line-of-sight)
+    // Czy target jest w zasięgu wzroku (<= 64 bloki + line-of-sight)
     private static boolean isPlayerVisible(Player viewer, Player target) {
         double maxDistSq = 64.0 * 64.0;
         if (viewer.distanceToSqr(target) > maxDistSq) {
@@ -159,15 +158,16 @@ public class EntityOptimizerMod implements ClientModInitializer {
         return viewer.hasLineOfSight(target);
     }
 
-    // Pełny tooltip przedmiotu – nazwa, enchanty, lore (MC 1.20.1: 2 argumenty)
+    // Pełny tooltip przedmiotu – nazwa, enchanty, lore (MC 1.21.4: 3 argumenty)
     private static List<String> getItemTooltipLines(Minecraft mc, ItemStack stack) {
         List<String> lines = new ArrayList<>();
 
-        if (mc.player == null) {
+        if (mc.level == null || mc.player == null) {
             return lines;
         }
 
-        List<Component> tooltip = stack.getTooltipLines(mc.player, TooltipFlag.NORMAL);
+        Item.TooltipContext ctx = Item.TooltipContext.of(mc.level);
+        List<Component> tooltip = stack.getTooltipLines(ctx, mc.player, TooltipFlag.NORMAL);
         if (tooltip == null || tooltip.isEmpty()) {
             return lines;
         }
