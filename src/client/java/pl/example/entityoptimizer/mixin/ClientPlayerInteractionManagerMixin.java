@@ -95,7 +95,7 @@ public class ClientPlayerInteractionManagerMixin {
         ItemStack stack = player.getItemInHand(hand);
         if (!stack.is(Items.PAINTING)) return;
 
-        // 1. Raycast od oczu, ignorujący WSZYSTKIE cobweby/bannery
+        // 1. Raycast od oczu, IGNORUJĄCY wszystkie cobweby/bannery
         BlockHitResult wallHit = findWallIgnoringThroughBlocks(player);
         if (wallHit == null || wallHit.getType() != HitResult.Type.BLOCK) {
             // jeśli coś poszło nie tak, pozwól vanilla działać normalnie
@@ -106,9 +106,21 @@ public class ClientPlayerInteractionManagerMixin {
         BlockState wallState = minecraft.level.getBlockState(wallPos);
         Direction wallFace = wallHit.getDirection();
 
-        // 2. Jeśli trafiono od góry/dół, zamieniamy na pionową ścianę widoczną dla gracza
+        // 2. Jeśli ściana trafiona od góry/dół, zamień na pionową ścianę widoczną dla gracza
         if (wallFace == Direction.UP || wallFace == Direction.DOWN) {
-            wallFace = player.getDirection().getOpposite(); // ściana przodem do gracza
+            // wektor od ściany do gracza
+            Vec3 eye = player.getEyePosition(1.0F);
+            Vec3 center = Vec3.atCenterOf(wallPos);
+            Vec3 diff = eye.subtract(center);
+
+            double ax = Math.abs(diff.x);
+            double az = Math.abs(diff.z);
+
+            if (ax > az) {
+                wallFace = diff.x > 0 ? Direction.EAST : Direction.WEST;
+            } else {
+                wallFace = diff.z > 0 ? Direction.SOUTH : Direction.NORTH;
+            }
         }
 
         // 3. Ściana musi być solidna na tej twarzy
