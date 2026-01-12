@@ -93,12 +93,22 @@ public class ClientPlayerInteractionManagerMixin {
         if (hand != InteractionHand.MAIN_HAND) return;
 
         ItemStack stack = player.getItemInHand(hand);
+
+        // *** BLOKADA WKŁADANIA ITEMÓW DO WAZONÓW (DECORATED_POT) ***
+        // Jeśli klikamy decorated_pot z jakimkolwiek itemem w ręce -> nie wysyłaj interakcji.
+        if (clickedState.is(Blocks.DECORATED_POT) && !stack.isEmpty()) {
+            cir.setReturnValue(InteractionResult.FAIL); // jakbyś kliknął w powietrze
+            cir.cancel();
+            return;
+        }
+
+        // dalej logika obrazów – tylko jeśli trzymasz painting
         if (!stack.is(Items.PAINTING)) return;
 
         // 1. Raycast od oczu, IGNORUJĄCY wszystkie cobweby/bannery
         BlockHitResult wallHit = findWallIgnoringThroughBlocks(player);
         if (wallHit == null || wallHit.getType() != HitResult.Type.BLOCK) {
-            // coś poszło nie tak – pozwól vanilla działać
+            // jeśli coś poszło nie tak, pozwól vanilla działać normalnie
             return;
         }
 
@@ -125,7 +135,7 @@ public class ClientPlayerInteractionManagerMixin {
             return;
         }
 
-        // 4. Udajemy kliknięcie na tej ścianie (środek + pół bloku w stronę wallFace)
+        // 4. Udajemy kliknięcie na tej ścianie (środek bloku + pół bloku w stronę wallFace)
         Vec3 offset = new Vec3(
                 wallFace.getStepX() * 0.5,
                 wallFace.getStepY() * 0.5,
