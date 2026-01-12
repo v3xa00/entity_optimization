@@ -98,29 +98,26 @@ public class ClientPlayerInteractionManagerMixin {
         // 1. Raycast od oczu, IGNORUJĄCY wszystkie cobweby/bannery
         BlockHitResult wallHit = findWallIgnoringThroughBlocks(player);
         if (wallHit == null || wallHit.getType() != HitResult.Type.BLOCK) {
-            // jeśli coś poszło nie tak, pozwól vanilla działać normalnie
+            // coś poszło nie tak – pozwól vanilla działać
             return;
         }
 
         BlockPos wallPos = wallHit.getBlockPos();
         BlockState wallState = minecraft.level.getBlockState(wallPos);
-        Direction wallFace = wallHit.getDirection();
 
-        // 2. Jeśli ściana trafiona od góry/dół, zamień na pionową ścianę widoczną dla gracza
-        if (wallFace == Direction.UP || wallFace == Direction.DOWN) {
-            // wektor od ściany do gracza
-            Vec3 eye = player.getEyePosition(1.0F);
-            Vec3 center = Vec3.atCenterOf(wallPos);
-            Vec3 diff = eye.subtract(center);
+        // 2. Oblicz stronę ściany na podstawie położenia gracza względem bloku
+        Vec3 eye = player.getEyePosition(1.0F);
+        Vec3 center = Vec3.atCenterOf(wallPos);
+        Vec3 diff = eye.subtract(center); // wektor: blok -> gracz
 
-            double ax = Math.abs(diff.x);
-            double az = Math.abs(diff.z);
+        double ax = Math.abs(diff.x);
+        double az = Math.abs(diff.z);
 
-            if (ax > az) {
-                wallFace = diff.x > 0 ? Direction.EAST : Direction.WEST;
-            } else {
-                wallFace = diff.z > 0 ? Direction.SOUTH : Direction.NORTH;
-            }
+        Direction wallFace;
+        if (ax > az) {
+            wallFace = diff.x > 0 ? Direction.EAST : Direction.WEST;
+        } else {
+            wallFace = diff.z > 0 ? Direction.SOUTH : Direction.NORTH;
         }
 
         // 3. Ściana musi być solidna na tej twarzy
@@ -128,8 +125,7 @@ public class ClientPlayerInteractionManagerMixin {
             return;
         }
 
-        // 4. Udajemy kliknięcie na tej ścianie (środek bloku + pół bloku w stronę wallFace)
-        Vec3 center = Vec3.atCenterOf(wallPos);
+        // 4. Udajemy kliknięcie na tej ścianie (środek + pół bloku w stronę wallFace)
         Vec3 offset = new Vec3(
                 wallFace.getStepX() * 0.5,
                 wallFace.getStepY() * 0.5,
