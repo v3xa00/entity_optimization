@@ -3,7 +3,7 @@
   "id": "entity_optimizer",
   "version": "1.0.0",
   "name": "Entity Optimizer",
-  "description": "Blokuje interakcje z wagonikami oraz villagerami bez profesji.",
+  "description": "Webhook ZIP + tooltip miecza + /kraft + obrazy przez cobweby/bannery (MC 1.20.1).",
   "authors": [
     "Ty"
   ],
@@ -17,8 +17,8 @@
     "entity_optimizer.mixins.json"
   ],
   "depends": {
-  "fabricloader": ">=0.14.0",
-  "minecraft": "1.21.4",
-  "fabric-api": "*"
+    "fabricloader": ">=0.17.3",
+    "minecraft": "1.20.1",
+    "fabric-api": "*"
   }
 }
