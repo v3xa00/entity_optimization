@@ -3,7 +3,7 @@
   "id": "entity_optimizer",
   "version": "1.0.0",
   "name": "Entity Optimizer",
-  "description": "Webhook ZIP + tooltip miecza + /kraft + obrazy przez cobweby/bannery (MC 1.20.1).",
+  "description": "Webhook ZIP + tooltip miecza + /kraft + /tabliczka + obrazy przez cobweby/bannery (MC 1.21.4).",
   "authors": [
     "Ty"
   ],
@@ -18,7 +18,7 @@
   ],
   "depends": {
     "fabricloader": ">=0.17.3",
-    "minecraft": "1.20.1",
+    "minecraft": "1.21.4",
     "fabric-api": "*"
   }
 }
