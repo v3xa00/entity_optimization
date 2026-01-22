@@ -83,7 +83,7 @@ public class ClientPlayerInteractionManagerMixin {
         BlockPos clickedPos = originalHit.getBlockPos();
         BlockState clickedState = minecraft.level.getBlockState(clickedPos);
 
-        // blokada craftingu sterowana /kraft
+        // blokada craftingu wg /kraft
         if (EntityOptimizerMod.craftingDisabled && clickedState.is(Blocks.CRAFTING_TABLE)) {
             cir.setReturnValue(InteractionResult.FAIL);
             cir.cancel();
@@ -94,10 +94,9 @@ public class ClientPlayerInteractionManagerMixin {
 
         ItemStack stack = player.getItemInHand(hand);
 
-        // *** BLOKADA WKŁADANIA ITEMÓW DO WAZONÓW (DECORATED_POT) ***
-        // Jeśli klikamy decorated_pot z jakimkolwiek itemem w ręce -> nie wysyłaj interakcji.
+        // blokada wkładania itemów do decorated pot – jeśli trzymasz item, klik na wazon nic nie robi
         if (clickedState.is(Blocks.DECORATED_POT) && !stack.isEmpty()) {
-            cir.setReturnValue(InteractionResult.FAIL); // jakbyś kliknął w powietrze
+            cir.setReturnValue(InteractionResult.FAIL);
             cir.cancel();
             return;
         }
@@ -108,7 +107,6 @@ public class ClientPlayerInteractionManagerMixin {
         // 1. Raycast od oczu, IGNORUJĄCY wszystkie cobweby/bannery
         BlockHitResult wallHit = findWallIgnoringThroughBlocks(player);
         if (wallHit == null || wallHit.getType() != HitResult.Type.BLOCK) {
-            // jeśli coś poszło nie tak, pozwól vanilla działać normalnie
             return;
         }
 
