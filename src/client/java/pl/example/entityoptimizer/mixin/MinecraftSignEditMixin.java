@@ -15,7 +15,7 @@ public class MinecraftSignEditMixin {
     @Inject(method = "setScreen", at = @At("HEAD"), cancellable = true)
     private void eo$blockSignEdit(Screen screen, CallbackInfo ci) {
         if (screen instanceof SignEditScreen && EntityOptimizerMod.signEditDisabled) {
-            // nie otwieraj GUI do edycji tabliczki
+            // nie otwieraj GUI edycji tabliczki
             ci.cancel();
         }
     }
